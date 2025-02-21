@@ -409,7 +409,7 @@ function App() {
                 className="flex items-center"
               >
                 <FileText className="h-8 w-8 text-blue-600" />
-                <span className="ml-2 text-xl font-semibold text-gray-900">RFP Generator</span>
+                <span className="ml-2 text-xl font-semibold text-gray-900">RFP-Me</span>
               </button>
             </div>
             <div className="flex items-center space-x-4">
