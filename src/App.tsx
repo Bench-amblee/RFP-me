@@ -59,6 +59,23 @@ function App() {
     setSections(sections.filter(section => section.id !== id));
   };
 
+  // New file upload state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileContent, setFileContent] = useState<string | null>(null);
+  
+  // File upload handler
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      if (file.type.includes("text") || file.type.includes("json")) {
+        const reader = new FileReader();
+        reader.onload = (e) => setFileContent(e.target?.result as string);
+        reader.readAsText(file);
+      }
+    }
+    };
+
   const renderHomePage = () => (
     <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-blue-50 via-white to-green-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -315,15 +332,35 @@ function App() {
         return (
           <div className="space-y-6">
             <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100 hover:border-blue-200 transition-colors cursor-pointer">
-              <div className="flex items-center justify-center h-32 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+              <label htmlFor="file-upload" className="flex items-center justify-center h-32 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
                 <div className="text-center">
                   <Upload className="mx-auto h-12 w-12 text-gray-400" />
                   <p className="mt-2 text-sm text-gray-600">Drop your RFP document here or click to browse</p>
                   <p className="text-xs text-gray-500">PDF, DOCX, or TXT files up to 10MB</p>
                 </div>
-              </div>
+              </label>
+              <input
+                id='file-upload'
+                type='file'
+                accept='.pdf,.doc,.docx,.txt'
+                className='hidden'
+                onChange={handleFileChange}
+                />
             </div>
+            {selectedFile && (
+              <div className='bg-gray-50 p-4 rounded-lg shadow border'>
+                <p className="font-semibold">File: {selectedFile.name}</p>
+                <p>Size: {(selectedFile.size / 1024).toFixed(2)} KB</p>
+                {fileContent && (
+                  <div className="mt-3 p-3 border rounded bg-gray-100 max-h-40 overflow-auto text-sm text-gray-700">
+                    <p>{fileContent}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          
 
+          
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-white p-6 rounded-lg shadow-md">
                 <h3 className="text-lg font-semibold mb-4">Response Settings</h3>
@@ -409,7 +446,7 @@ function App() {
                 className="flex items-center"
               >
                 <FileText className="h-8 w-8 text-blue-600" />
-                <span className="ml-2 text-xl font-semibold text-gray-900">RFP-Me</span>
+                <span className="ml-2 text-xl font-semibold text-gray-900">RFP Generator</span>
               </button>
             </div>
             <div className="flex items-center space-x-4">
