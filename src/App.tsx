@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, FileText, CheckCircle, BarChart3, Database, Settings, GripVertical, Edit3, Trash2, Plus, LogIn, UserPlus, ArrowRight } from 'lucide-react';
+import { Upload, FileText, CheckCircle, BarChart3, Database, Settings, GripVertical, Edit3, Trash2, Plus, LogIn, UserPlus, ArrowRight, Loader } from 'lucide-react';
 
 type Tab = 'home' | 'upload' | 'review' | 'database' | 'analytics';
 
@@ -59,22 +59,33 @@ function App() {
     setSections(sections.filter(section => section.id !== id));
   };
 
-  // New file upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [fileContent, setFileContent] = useState<string | null>(null);
-  
-  // File upload handler
+  const [companyDescription, setCompanyDescription] = useState("");  
+  const [isLoading, setIsLoading] = useState(false);
+
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setSelectedFile(file);
-      if (file.type.includes("text") || file.type.includes("json")) {
-        const reader = new FileReader();
-        reader.onload = (e) => setFileContent(e.target?.result as string);
-        reader.readAsText(file);
+      console.log("File uploade:",file.name);
       }
-    }
     };
+  
+  const removeFile = () => {
+    setSelectedFile(null);
+  };
+
+  const handleSubmit =() => {
+    if (!selectedFile) return;
+    setIsLoading(true);
+    console.log("Submitting file:",selectedFile.name);
+
+    setTimeout(() => {
+      setIsLoading(false);
+      alert("File successfully submitted!");
+    }, 2000);
+    };
+    
 
   const renderHomePage = () => (
     <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -331,14 +342,17 @@ function App() {
       case 'upload':
         return (
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-lg shadow-md border border-gray-100 hover:border-blue-200 transition-colors cursor-pointer">
-              <label htmlFor="file-upload" className="flex items-center justify-center h-32 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+            <div 
+            className="bg-white p-6 rounded-lg shadow-md border border-gray-100 hover:border-blue-200 transition-colors cursor-pointer"
+            onClick={() => document.getElementById("file-upload")?.click()}
+            >
+              <div className="flex items-center justify-center h-32 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
                 <div className="text-center">
                   <Upload className="mx-auto h-12 w-12 text-gray-400" />
                   <p className="mt-2 text-sm text-gray-600">Drop your RFP document here or click to browse</p>
                   <p className="text-xs text-gray-500">PDF, DOCX, or TXT files up to 10MB</p>
                 </div>
-              </label>
+              </div>
               <input
                 id='file-upload'
                 type='file'
@@ -347,18 +361,45 @@ function App() {
                 onChange={handleFileChange}
                 />
             </div>
+
             {selectedFile && (
-              <div className='bg-gray-50 p-4 rounded-lg shadow border'>
-                <p className="font-semibold">File: {selectedFile.name}</p>
-                <p>Size: {(selectedFile.size / 1024).toFixed(2)} KB</p>
-                {fileContent && (
-                  <div className="mt-3 p-3 border rounded bg-gray-100 max-h-40 overflow-auto text-sm text-gray-700">
-                    <p>{fileContent}</p>
-                  </div>
-                )}
+              <div className="flex justify-between items-center bg-gray-100 p-4 rounded-lg shadow border">
+                <div>
+                  <p className="font-semibold">File: {selectedFile.name}</p>
+                  <p>Size: {(selectedFile.size / 1024).toFixed(2)} KB</p>
+                </div>
+                <button onClick={removeFile} className="text-red-500 hover:text-red-700">
+                <Trash2 className="h-5 w-5" />
+                </button> 
               </div>
             )}
-          
+
+            {selectedFile && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">Company Description</label>
+                <textarea
+                  value={companyDescription}
+                  onChange={(e) => setCompanyDescription(e.target.value)}
+                  placeholder="Describe your company, the AI will use your language as reference when responding to the RFP"
+                  maxLength={1000}
+                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm resize-none h-28"
+                />
+                <p className="text-xs text-gray-500">{companyDescription.length} / 1000 characters</p>
+              </div>
+            )}
+
+            {selectedFile && (
+              <button
+                onClick={handleSubmit}
+                disabled={isLoading}
+                className={`w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition ${
+                  isLoading ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+                >
+                  {isLoading ? <Loader className="animate-spin h-5 w-5" /> : null}
+                  {isLoading ? "Processing..." : "Submit"}
+                </button>
+            )}
 
           
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
