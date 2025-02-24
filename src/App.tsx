@@ -62,6 +62,7 @@ function App() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [companyDescription, setCompanyDescription] = useState("");  
   const [isLoading, setIsLoading] = useState(false);
+  const [response, setResponse] = useState<string | null>(null);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -75,18 +76,35 @@ function App() {
     setSelectedFile(null);
   };
 
-  const handleSubmit =() => {
-    if (!selectedFile) return;
+  const handleSubmit = async () => {
+    if (!selectedFile || !companyDescription) {
+      alert("Please upload a file and enter a company description.");
+      return;
+    }
+
     setIsLoading(true);
-    console.log("Submitting file:",selectedFile.name);
 
-    setTimeout(() => {
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+    formData.append("description", companyDescription);
+
+    try {
+      const res = await fetch("http://127.0.0.1:8000/process_rfp/", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      setResponse(data.response);
+    } catch (error) {
+      console.error("Error:", error);
+      setResponse("Failed to generate a response.");
+    } finally {
       setIsLoading(false);
-      alert("File successfully submitted!");
-    }, 2000);
-    };
+    }
+  };
+  
     
-
   const renderHomePage = () => (
     <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-blue-50 via-white to-green-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -399,6 +417,13 @@ function App() {
                   {isLoading ? <Loader className="animate-spin h-5 w-5" /> : null}
                   {isLoading ? "Processing..." : "Submit"}
                 </button>
+            )}
+
+            {response && (
+              <div className="bg-gray-100 p-4 rounded-lg shadow">
+                <h3 className="font-semibold">Generated RFP Response:</h3>
+                <p className="text-gray-700">{response}</p>
+              </div>
             )}
 
           
