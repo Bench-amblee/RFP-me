@@ -76,20 +76,18 @@ function App() {
     setSelectedFile(null);
   };
 
+  const API_BASE_URL = "https://rfp-me-backend.onrender.com";
+
   const handleSubmit = async () => {
-    if (!selectedFile || !companyDescription) {
-      alert("Please upload a file and enter a company description.");
-      return;
-    }
-
+    if (!selectedFile) return;
     setIsLoading(true);
-
+    
     const formData = new FormData();
     formData.append("file", selectedFile);
     formData.append("description", companyDescription);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/process_rfp/", {
+      const res = await fetch(`${API_BASE_URL}/generate-rfp`, {
         method: "POST",
         body: formData,
       });
@@ -98,10 +96,8 @@ function App() {
       setResponse(data.response);
     } catch (error) {
       console.error("Error:", error);
-      setResponse("Failed to generate a response.");
-    } finally {
-      setIsLoading(false);
     }
+      setIsLoading(false);
   };
   
     
