@@ -87,7 +87,7 @@ function App() {
     formData.append("description", companyDescription);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/generate-rfp`, {
+      const res = await fetch(`${API_BASE_URL}/process_rfp`, {
         method: "POST",
         body: formData,
       });
