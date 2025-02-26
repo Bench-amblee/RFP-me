@@ -3,32 +3,9 @@ import { Upload, FileText, CheckCircle, BarChart3, Database, Settings, Trash2, U
 
 type Tab = 'home' | 'upload' | 'review' | 'database' | 'analytics';
 
-interface Section {
-  id: string;
-  title: string;
-  content: string;
-}
-
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
-  const [sections, setSections] = useState<Section[]>([
-    {
-      id: '1',
-      title: 'Executive Summary',
-      content: 'Our proposal addresses all key requirements outlined in the RFP, leveraging our extensive experience in...'
-    },
-    {
-      id: '2',
-      title: 'Technical Approach',
-      content: 'We propose a comprehensive technical solution that incorporates modern technologies and best practices...'
-    },
-    {
-      id: '3',
-      title: 'Past Performance',
-      content: 'Our track record demonstrates successful delivery of similar projects, including...'
-    }
-  ]);
-
+  
   const [isSigningUp, setIsSigningUp] = useState(false);
   
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -65,14 +42,7 @@ function App() {
       });
 
       const data = await res.json();
-
-      const newSection: Section = {
-        id: Date.now().toString(),
-        title: "AI-Generated RFP Response",
-        content: data.response,
-      };
-
-      setSections([...sections, newSection]);
+      setResponse(data.response);
     } catch (error) {
       console.error("Error:", error);
     }
@@ -310,17 +280,13 @@ function App() {
             )}
             
             {/* Sections Display (including AI response) */}
-            {response && sections.length > 0 && (
-              <div className="space-y-4">
-              {sections.map((section) => (
-                <div key={section.id} className="bg-white p-4 rounded-lg shadow-md border border-gray-200">
-                  <h3 className="font-semibold text-lg">{section.title}</h3>
-                  <p className="text-gray-700">{section.content}</p>
+            {response && (
+              <div className="bg-gray-100 p-4 rounded-lg shadow">
+                <h3 className="font-semibold">Generated RFP Response:</h3>
+                <p className="text-gray-700">{response}</p>
                 </div>
-              ))}
-              </div>
-            )}
-
+              )}
+              
             {/*   Sections to be added later:
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
