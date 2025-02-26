@@ -1,63 +1,12 @@
 import React, { useState } from 'react';
-import { Upload, FileText, CheckCircle, BarChart3, Database, Settings, GripVertical, Edit3, Trash2, Plus, LogIn, UserPlus, ArrowRight, Loader } from 'lucide-react';
+import { Upload, FileText, CheckCircle, BarChart3, Database, Settings, Trash2, UserPlus, ArrowRight, Loader } from 'lucide-react';
 
 type Tab = 'home' | 'upload' | 'review' | 'database' | 'analytics';
 
-interface Section {
-  id: string;
-  title: string;
-  content: string;
-}
-
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
-  const [sections, setSections] = useState<Section[]>([
-    {
-      id: '1',
-      title: 'Executive Summary',
-      content: 'Our proposal addresses all key requirements outlined in the RFP, leveraging our extensive experience in...'
-    },
-    {
-      id: '2',
-      title: 'Technical Approach',
-      content: 'We propose a comprehensive technical solution that incorporates modern technologies and best practices...'
-    },
-    {
-      id: '3',
-      title: 'Past Performance',
-      content: 'Our track record demonstrates successful delivery of similar projects, including...'
-    }
-  ]);
 
-  const [editingSection, setEditingSection] = useState<string | null>(null);
   const [isSigningUp, setIsSigningUp] = useState(false);
-
-  const moveSection = (fromIndex: number, toIndex: number) => {
-    const newSections = [...sections];
-    const [movedSection] = newSections.splice(fromIndex, 1);
-    newSections.splice(toIndex, 0, movedSection);
-    setSections(newSections);
-  };
-
-  const updateSectionContent = (id: string, newContent: string) => {
-    setSections(sections.map(section =>
-      section.id === id ? { ...section, content: newContent } : section
-    ));
-  };
-
-  const addNewSection = () => {
-    const newSection: Section = {
-      id: Date.now().toString(),
-      title: 'New Section',
-      content: 'Enter your content here...'
-    };
-    setSections([...sections, newSection]);
-    setEditingSection(newSection.id);
-  };
-
-  const deleteSection = (id: string) => {
-    setSections(sections.filter(section => section.id !== id));
-  };
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [companyDescription, setCompanyDescription] = useState("");  
@@ -99,7 +48,6 @@ function App() {
     }
       setIsLoading(false);
   };
-  
     
   const renderHomePage = () => (
     <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-blue-50 via-white to-green-50">
@@ -260,95 +208,6 @@ function App() {
     </div>
   );
 
-  const renderDocumentEditor = () => (
-    <div className="space-y-4">
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-semibold">Document Editor</h2>
-          <button
-            onClick={addNewSection}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Section
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          {sections.map((section, index) => (
-            <div
-              key={section.id}
-              className="border rounded-lg p-4 bg-white shadow-sm"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center">
-                  <button
-                    className="cursor-move p-1 hover:bg-gray-100 rounded"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                    }}
-                  >
-                    <GripVertical className="h-5 w-5 text-gray-400" />
-                  </button>
-                  <h3 className="font-medium text-gray-900 ml-2">{section.title}</h3>
-                </div>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => setEditingSection(section.id)}
-                    className="p-1 hover:bg-gray-100 rounded"
-                  >
-                    <Edit3 className="h-4 w-4 text-gray-600" />
-                  </button>
-                  <button
-                    onClick={() => deleteSection(section.id)}
-                    className="p-1 hover:bg-gray-100 rounded"
-                  >
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </button>
-                </div>
-              </div>
-              {editingSection === section.id ? (
-                <div className="space-y-3">
-                  <input
-                    type="text"
-                    value={section.title}
-                    onChange={(e) => {
-                      const newSections = [...sections];
-                      newSections[index].title = e.target.value;
-                      setSections(newSections);
-                    }}
-                    className="w-full px-3 py-2 border rounded-md"
-                  />
-                  <textarea
-                    value={section.content}
-                    onChange={(e) => updateSectionContent(section.id, e.target.value)}
-                    className="w-full h-32 px-3 py-2 border rounded-md"
-                  />
-                  <div className="flex justify-end space-x-2">
-                    <button
-                      onClick={() => setEditingSection(null)}
-                      className="px-4 py-2 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => setEditingSection(null)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-gray-600 whitespace-pre-wrap">{section.content}</p>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-
   const renderContent = () => {
     switch (activeTab) {
       case 'home':
@@ -422,7 +281,8 @@ function App() {
               </div>
             )}
 
-          
+            {/*   Sections to be added later:
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-white p-6 rounded-lg shadow-md">
                 <h3 className="text-lg font-semibold mb-4">Response Settings</h3>
@@ -446,6 +306,7 @@ function App() {
                 </div>
               </div>
 
+
               <div className="bg-white p-6 rounded-lg shadow-md">
                 <h3 className="text-lg font-semibold mb-4">Template Selection</h3>
                 <div className="space-y-4">
@@ -463,6 +324,8 @@ function App() {
                 </div>
               </div>
             </div>
+            */}
+            
 
             <div className="flex justify-end">
               <button className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors">
@@ -470,9 +333,12 @@ function App() {
               </button>
             </div>
 
-            {renderDocumentEditor()}
+            {/* {renderDocumentEditor()} */}
           </div>
+
         );
+
+
       case 'review':
         return (
           <div className="bg-white p-6 rounded-lg shadow-md">
