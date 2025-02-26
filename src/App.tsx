@@ -3,11 +3,34 @@ import { Upload, FileText, CheckCircle, BarChart3, Database, Settings, Trash2, U
 
 type Tab = 'home' | 'upload' | 'review' | 'database' | 'analytics';
 
+interface Section {
+  id: string;
+  title: string;
+  content: string;
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
+  const [sections, setSections] = useState<Section[]>([
+    {
+      id: '1',
+      title: 'Executive Summary',
+      content: 'Our proposal addresses all key requirements outlined in the RFP, leveraging our extensive experience in...'
+    },
+    {
+      id: '2',
+      title: 'Technical Approach',
+      content: 'We propose a comprehensive technical solution that incorporates modern technologies and best practices...'
+    },
+    {
+      id: '3',
+      title: 'Past Performance',
+      content: 'Our track record demonstrates successful delivery of similar projects, including...'
+    }
+  ]);
 
   const [isSigningUp, setIsSigningUp] = useState(false);
-
+  
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [companyDescription, setCompanyDescription] = useState("");  
   const [isLoading, setIsLoading] = useState(false);
@@ -42,7 +65,14 @@ function App() {
       });
 
       const data = await res.json();
-      setResponse(data.response);
+
+      const newSection: Section = {
+        id: Date.now().toString(),
+        title: "AI-Generated RFP Response",
+        content: data.response,
+      };
+
+      setSections([...sections, newSection]);
     } catch (error) {
       console.error("Error:", error);
     }
@@ -215,6 +245,8 @@ function App() {
       case 'upload':
         return (
           <div className="space-y-6">
+            
+            {/* File Upload Section */}
             <div 
             className="bg-white p-6 rounded-lg shadow-md border border-gray-100 hover:border-blue-200 transition-colors cursor-pointer"
             onClick={() => document.getElementById("file-upload")?.click()}
@@ -235,6 +267,7 @@ function App() {
                 />
             </div>
 
+            {/* Display uploaded file info */}
             {selectedFile && (
               <div className="flex justify-between items-center bg-gray-100 p-4 rounded-lg shadow border">
                 <div>
@@ -247,6 +280,7 @@ function App() {
               </div>
             )}
 
+            {/* Company Description */}
             {selectedFile && (
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">Company Description</label>
@@ -261,6 +295,7 @@ function App() {
               </div>
             )}
 
+            {/* Submit Button */}
             {selectedFile && (
               <button
                 onClick={handleSubmit}
@@ -273,11 +308,16 @@ function App() {
                   {isLoading ? "Processing..." : "Submit"}
                 </button>
             )}
-
-            {response && (
-              <div className="bg-gray-100 p-4 rounded-lg shadow">
-                <h3 className="font-semibold">Generated RFP Response:</h3>
-                <p className="text-gray-700">{response}</p>
+            
+            {/* Sections Display (including AI response) */}
+            {response && sections.length > 0 && (
+              <div className="space-y-4">
+              {sections.map((section) => (
+                <div key={section.id} className="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+                  <h3 className="font-semibold text-lg">{section.title}</h3>
+                  <p className="text-gray-700">{section.content}</p>
+                </div>
+              ))}
               </div>
             )}
 
