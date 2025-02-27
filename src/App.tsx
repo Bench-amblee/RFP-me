@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Upload, FileText, CheckCircle, BarChart3, Database, Settings, Trash2, UserPlus, ArrowRight, Loader } from 'lucide-react';
+import html2pdf from 'html2pdf.js';
+
 
 type Tab = 'home' | 'upload' | 'review' | 'database' | 'analytics';
 
@@ -48,7 +50,22 @@ function App() {
     }
       setIsLoading(false);
   };
-    
+
+  const generatePDF = () => {
+    const content = document.getElementById("pdf-content");
+    if (!content) return;
+  
+    const options = {
+      margin: 10,
+      filename: "RFP_Response.pdf",
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    };
+  
+    html2pdf().set(options).from(content).save();
+  };
+
   const renderHomePage = () => (
     <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-blue-50 via-white to-green-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -281,10 +298,18 @@ function App() {
             
             {/* Sections Display (including AI response) */}
             {response && (
-              <div className="bg-gray-100 p-4 rounded-lg shadow">
+              <div id='pdf-content' className="bg-gray-100 p-4 rounded-lg shadow">
                 <h3 className="font-semibold">Generated RFP Response:</h3>
                 <p className="text-gray-700">{response}</p>
                 </div>
+              )}
+            {response && ( 
+            <button
+              onClick={generatePDF}
+              className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600 transition"
+            >
+              Download as PDF
+            </button>
               )}
               
             {/*   Sections to be added later:

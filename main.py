@@ -46,12 +46,18 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
     prompt = f"""
     Company Description: {description}
 
-    The following is the full text of an RFP (Request for Proposal). Generate a professional response tailored to the company’s description and tone.
+    You are a professional proposal writer. Your task is to generate a well-structured and visually appealing RFP (Request for Proposal) response tailored to the company’s description and tone.
 
-    RFP Content:
+    ### **Response Format:**
+    - Use **clear section headings** (e.g., Executive Summary, Technical Approach, Past Performance).
+    - Use **bullet points** for key details when appropriate.
+    - Keep **paragraphs concise** for readability.
+    - Maintain **professional and formal tone**.
+
+    ### **RFP Content to Respond To:**
     {extracted_text}
 
-    Keep it professional, concise, and aligned with the company's style.
+    Ensure the response is **well-organized** and adheres to best practices for professional proposals.
     """
 
     response = client.chat.completions.create(
