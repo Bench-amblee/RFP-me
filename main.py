@@ -1,13 +1,14 @@
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from openai import OpenAI
 import shutil
 import os
 from dotenv import load_dotenv
 import textract
+import aiofiles  # For async file handling
 
 load_dotenv()
-
 
 app = FastAPI()
 
@@ -31,10 +32,13 @@ client = OpenAI(api_key=openai_api_key)
 async def process_rfp(file: UploadFile = File(...), description: str = Form(...)):
     file_path = f"temp/{file.filename}"
 
-    # Save uploaded file
+    # Ensure temp directory exists
     os.makedirs("temp", exist_ok=True)
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+
+    # Save uploaded file asynchronously
+    async with aiofiles.open(file_path, "wb") as buffer:
+        while chunk := await file.read(1024):  # Read in chunks
+            await buffer.write(chunk)
 
     # Extract text from the document
     try:
@@ -42,8 +46,11 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
     except Exception as e:
         extracted_text = f"Error reading file: {str(e)}"
 
-    # AI Processing with OpenAI
-    prompt = f"""
+    # Remove file after extraction
+    os.remove(file_path)
+
+    # Define the AI prompt
+    system_prompt = f"""
     Company Description: {description}
 
     You are a professional proposal writer. Your task is to generate a well-structured and visually appealing RFP (Request for Proposal) response tailored to the company’s description and tone.
@@ -60,13 +67,18 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
     Ensure the response is **well-organized** and adheres to best practices for professional proposals.
     """
 
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[{"role": "system", "content": "You are an expert at writing RFP responses."},
-                  {"role": "user", "content": prompt}]
-    )
+    async def generate_response():
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are an expert at writing RFP responses."},
+                {"role": "user", "content": system_prompt},
+            ],
+            stream=True,  # Enables streaming
+        )
 
-    # Delete temporary file
-    os.remove(file_path)
+        for chunk in response:
+            if chunk.choices[0].delta.get("content"):
+                yield chunk.choices[0].delta["content"]  # Send text in real-time
 
-    return {"response": response.choices[0].message.content}
+    return StreamingResponse(generate_response(), media_type="text/plain")

@@ -31,6 +31,7 @@ function App() {
 
   const handleSubmit = async () => {
     if (!selectedFile) return;
+    setResponse("");
     setIsLoading(true);
     
     const formData = new FormData();
@@ -43,6 +44,28 @@ function App() {
         body: formData,
       });
 
+      if (!res.ok) {
+        throw new Error(`HTTP error! Status: ${res.status}`);
+      }
+
+      if (!res.body) {
+        throw new Error("Response body is null.");
+    }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullResponse = "";
+
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, {stream: true});
+        fullResponse += chunk;
+
+        setResponse(prev => prev + chunk);
+      }
+
       const data = await res.json();
       setResponse(data.response);
     } catch (error) {
@@ -52,9 +75,16 @@ function App() {
   };
 
   const generatePDF = () => {
-    const content = document.getElementById("pdf-content");
+    // ensure response is fully loaded
+    if (!response || response.trim() === "") {
+      alert("The response is still generating. Please wait!");
+      return;
+  }
+    // select AI-generated response
+    const content = document.getElementById("response-content");
     if (!content) return;
-  
+
+    // PDF styling
     const options = {
       margin: 10,
       filename: "RFP_Response.pdf",
@@ -62,8 +92,11 @@ function App() {
       html2canvas: { scale: 2 },
       jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
     };
-  
-    html2pdf().set(options).from(content).save();
+
+    // Add a delay to ensure UI is rendered before generating PDF
+    setTimeout(() => {
+      html2pdf().set(options).from(content).save();
+  }, 500);
   };
 
   const renderHomePage = () => (
@@ -295,6 +328,18 @@ function App() {
                   {isLoading ? "Processing..." : "Submit"}
                 </button>
             )}
+
+            {isLoading && (
+              <p className="text-gray-500 italic animate-pulse">AI is generating response...</p>
+              )}
+
+            {/* Sections Display with Typing Effect */}
+            {response && (
+              <div id="response-content" className="bg-gray-100 p-4 rounded-lg shadow animate-fadeIn">
+                <h3 className="font-semibold">Generated RFP Response:</h3>
+                <pre className="text-gray-700 font-mono whitespace-pre-wrap">{response}</pre>
+              </div>
+              )}
             
             {/* Sections Display (including AI response) */}
             {response && (
