@@ -78,7 +78,7 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
         )
 
         for chunk in response:
-            if chunk.choices[0].delta.get("content"):
-                yield chunk.choices[0].delta["content"]  # Send text in real-time
+            if hasattr(chunk.choices[0].delta, "content"): #check if content exists
+                yield chunk.choices[0].delta.content  # send text in real-time
 
     return StreamingResponse(generate_response(), media_type="text/plain")
