@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Upload, FileText, CheckCircle, BarChart3, Database, Settings, Trash2, UserPlus, ArrowRight, Loader } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
+import ReactMarkdown from 'react-markdown';
 
 
 type Tab = 'home' | 'upload' | 'review' | 'database' | 'analytics';
@@ -336,7 +337,9 @@ function App() {
             {response && (
               <div id="response-content" className="bg-gray-100 p-4 rounded-lg shadow animate-fadeIn">
                 <h3 className="font-semibold">Generated RFP Response:</h3>
-                <pre className="text-gray-700 font-mono whitespace-pre-wrap">{response}</pre>
+                <div className="text-gray-700 prose">{}
+                  <ReactMarkdown>{response}</ReactMarkdown>
+                </div>
               </div>
               )}
             
