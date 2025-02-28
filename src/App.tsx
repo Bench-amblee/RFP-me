@@ -299,7 +299,6 @@ function App() {
                 </button> 
               </div>
             )}
-
             {/* Company Description */}
             {selectedFile && (
               <div className="space-y-2">
