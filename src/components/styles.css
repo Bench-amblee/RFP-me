@@ -1,0 +1,58 @@
+/* styles.css */
+
+/* Style for the response container */
+#response-content {
+    background-color: white;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e5e7eb;
+    font-family: 'Arial', sans-serif; /* Optional: Set a consistent font */
+    max-width: 800px;
+    margin: 20px auto; /* Center the container */
+}
+
+/* Section headers */
+#response-content h2 {
+    color: #1D4ED8; /* Blue for section headers */
+    border-bottom: 2px solid #93C5FD;
+    padding-bottom: 5px;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+/* Subheaders */
+#response-content h3 {
+    color: #0F172A; /* Darker gray for subheaders */
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Paragraphs */
+#response-content p {
+    margin-bottom: 1rem;
+    line-height: 1.6;
+    color: #374151; /* Darker text for readability */
+}
+
+/* Strong text */
+#response-content strong {
+    color: #2563EB; /* Highlighted text */
+    font-weight: bold;
+}
+
+/* Optional: Add a clean style to lists */
+#response-content ul {
+    list-style-type: disc;
+    padding-left: 20px;
+    margin-bottom: 1rem;
+}
+
+#response-content li {
+    margin-bottom: 0.5rem;
+}
+
+/* Add padding to break elements */
+#response-content br {
+    margin-bottom: 0.5rem;
+}
