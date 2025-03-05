@@ -52,19 +52,10 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
     # Define the AI prompt
     system_prompt = f"""
     Company Description: {description}
-
+    
     You are a professional proposal writer. Your task is to generate a well-structured and visually appealing RFP (Request for Proposal) response tailored to the company’s description and tone.
 
-    The response should be organized into the following sections:
-    - Exective Summary
-    - Project Approach
-    - Pricing and Deliverables
-    - Conclusion
-
-    Each section will take up its own page or possible more than one page so make sure to keep the content visually appealing by ocassionally adding in bullet points or tables.
-    
-    Response Format:
-    - Generate a professional RFP response in HTML format, using <h2> tags for section headings, <p> for paragraphs, <strong> for bold text, and <ul> or <ol> for bullet and numbered lists. The output should look structured and ready for presentation.
+    ### **Response Format:**
     - Use **clear section headings** (e.g., Executive Summary, Technical Approach, Past Performance).
     - Use **bullet points** for key details when appropriate.
     - Keep **paragraphs concise** for readability.
