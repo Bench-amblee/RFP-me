@@ -55,6 +55,15 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
     
     You are a professional proposal writer. Your task is to generate a well-structured and visually appealing RFP (Request for Proposal) response tailored to the company’s description and tone.
 
+    The response should be organized into the following sections:
+    - Executive Summary
+    - Project Approach
+    - Pricing and Deliverables
+    - Conclusion
+
+    Each section will have its own page so remember to make the content relevant and visually appealing by adding in bullet points, tables, and headings.
+
+
     ### **Response Format:**
     - Use **clear section headings** (e.g., Executive Summary, Technical Approach, Past Performance).
     - Use **bullet points** for key details when appropriate.
