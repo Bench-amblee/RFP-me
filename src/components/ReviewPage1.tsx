@@ -2,10 +2,6 @@ import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import DOMPurify from "dompurify";
 import html2pdf from "html2pdf.js";
-import EditorJS from '@editorjs/editorjs';
-import Header from '@editorjs/header';
-import List from '@editorjs/list';
-import Paragraph from '@editorjs/paragraph';
 import { ChevronDown, ChevronUp, Edit2, Save, X, FileDown, ArrowLeft, Eye } from 'lucide-react';
 import Navbar from "./Navbar";
 import CustomizationPanel from './CustomizationPanel';
@@ -24,7 +20,7 @@ const ReviewPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [expandedSection, setExpandedSection] = useState<string | null>("Title Page");
   const [editingSection, setEditingSection] = useState<string | null>(null);
-  const editorRef = useRef<EditorJS | null>(null);
+  const [editContent, setEditContent] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
@@ -107,32 +103,25 @@ const ReviewPage = () => {
     printContent.appendChild(titlePage);
 
     sections.forEach((section) => {
-      const sectionDiv = document.createElement("div");
-      sectionDiv.className = "section";
-      sectionDiv.innerHTML = `
-          <h2 style="color: ${styles.headingColor};">${section.title}</h2>
-          <div style="color: ${styles.textColor}; font-family: ${styles.fontFamily}, sans-serif;">
-              ${DOMPurify.sanitize(section.content)}
-          </div>
-      `;
-      printContent.appendChild(sectionDiv);
-  });
+        const sectionDiv = document.createElement("div");
+        sectionDiv.className = "section";
+        sectionDiv.innerHTML = `
+            <h2>${section.title}</h2>
+            ${DOMPurify.sanitize(section.content)}
+        `;
+        printContent.appendChild(sectionDiv);
+    });
 
     document.body.appendChild(printContent);
     printContent.style.display = "block";
 
     const options = {
-      margin: [20, 20, 20, 20],
-      filename: fileName,
-      image: { type: "jpeg", quality: 1 },
-      html2canvas: { 
-          scale: 3, // Higher scale for better quality
-          useCORS: true,
-          dpi: 300, 
-          letterRendering: true // Ensures proper text rendering
-      },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-  };
+        margin: [20, 20, 20, 20],
+        filename: fileName,
+        image: { type: "jpeg", quality: 1 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    };
 
     setTimeout(() => {
         html2pdf().set(options).from(printContent).save().then(() => {
@@ -152,22 +141,21 @@ const ReviewPage = () => {
     setIsLoading(true);
 
     if (TEST_MODE) {
+      const staticResponse = `
+        <h2>Executive Summary</h2>
+        <p>Thank you for considering us for your project. Our solutions are tailored to meet your needs.</p>
+        
+        <h2>Project Approach</h2>
+        <p>We follow a structured methodology to ensure project success...</p>
+        
+        <h2>Pricing and Deliverables</h2>
+        <p>Our pricing model is flexible and transparent...</p>
+        
+        <h2>Conclusion</h2>
+        <p>We look forward to collaborating and driving success together...</p>
+      `;
 
-      const staticResponse = {
-        time: Date.now(),
-        blocks: [
-          { type: "header", data: { text: "Executive Summary", level: 2 } },
-          { type: "paragraph", data: { text: "Thank you for considering us for your project..." } },
-          { type: "header", data: { text: "Project Approach", level: 2 } },
-          { type: "paragraph", data: { text: "We follow a structured methodology to ensure project success..." } },
-          { type: "header", data: { text: "Pricing and Deliverables", level: 2 } },
-          { type: "paragraph", data: { text: "Our pricing model is flexible and transparent..." } },
-          { type: "header", data: { text: "Conclusion", level: 2 } },
-          { type: "paragraph", data: { text: "We look forward to collaborating and driving success together..." } }
-        ]
-      };
-
-      parseAndSetSections(JSON.stringify(staticResponse));
+      parseAndSetSections(staticResponse);
       setIsLoading(false);
     } else {
       const fetchAIResponse = async () => {
@@ -189,111 +177,63 @@ const ReviewPage = () => {
     }
   }, [selectedFile, companyName, companyDescription, navigate]);
 
-  const parseAndSetSections = (jsonResponse: string) => {
-    try {
-      const parsedData = JSON.parse(jsonResponse);
-      console.log("Parsed JSON:", parsedData); // Debugging
-      
-  
-      const sectionTitles = [
-        "Executive Summary",
-        "Project Approach",
-        "Pricing and Deliverables",
-        "Conclusion",
-      ];
-  
-      const newSections: Section[] = [];
-      let currentSection: Section | null = null;
-  
-      parsedData.blocks.forEach((block: any) => {
-        if (block.type === "header" && sectionTitles.includes(block.data.text)) {
-          // Save the previous section
-          if (currentSection) {
-            newSections.push(currentSection);
-          }
-  
-          // Start new section
-          currentSection = { title: block.data.text, content: "" };
-        } else if (block.type === "paragraph" && currentSection) {
-          // Append paragraph content to the current section
-          currentSection.content += block.data.text + "\n"; // Use newline instead of <br/>
+  const parseAndSetSections = (htmlResponse: string) => {
+    const sectionTitles = [
+      "Executive Summary",
+      "Project Approach",
+      "Pricing and Deliverables",
+      "Conclusion",
+    ];
+
+    const newSections: Section[] = [];
+    let currentSection: Section | null = null;
+    const lines = htmlResponse.split(/<br\/?>|\n/);
+
+    lines.forEach((line) => {
+      const titleMatch = sectionTitles.find((title) => line.includes(title));
+      if (titleMatch) {
+        if (currentSection) {
+          newSections.push(currentSection);
         }
-      });
-  
-      // Add the last section
-      if (currentSection) {
-        newSections.push(currentSection);
+        currentSection = { title: titleMatch, content: "" };
+      } else if (currentSection) {
+        currentSection.content += line + "<br/>";
       }
-  
-      console.log("Parsed Sections:", newSections); // Debugging
-      
-      setSections(newSections);
-    } catch (error) {
-      console.error("Error parsing JSON response:", error);
+
+      const projectNameMatch = line.match(/Project Name[:\s]*(.*)/i);
+      if (projectNameMatch && !projectName) {
+        setProjectName(projectNameMatch[1]);
+      }
+    });
+
+    if (currentSection) {
+      newSections.push(currentSection);
     }
+
+    setSections(newSections);
   };
-  
 
   const toggleSection = (sectionTitle: string) => {
-    console.log("🔄 Toggling section:", sectionTitle);
     setExpandedSection((prev) => (prev === sectionTitle ? null : sectionTitle));
   };
 
   const startEditing = (section: Section) => {
-    console.log("🚀 startEditing() triggered for:", section.title);
-
     setEditingSection(section.title);
+    setEditContent(section.content.replace(/<br\/?>/g, '\n'));
+  };
 
-    setTimeout(() => {
-        if (editorRef.current) {
-            editorRef.current.destroy();
-        }
-
-        let parsedContent = {};
-
-          try {
-            parsedContent = section.content && section.content !== "{}" 
-            ? JSON.parse(section.content) 
-            : { blocks: [] };
-          } catch (error) {
-            console.error("Error parsing section content:", error);
-            parsedContent = { blocks: [{ type: "paragraph", data: { text: section.content || "" } }] }; 
-    }
-
-        editorRef.current = new EditorJS({
-            holder: 'editor-js-container',
-            tools: {
-                header: Header,
-                list: List,
-                paragraph: Paragraph
-            },
-            data: parsedContent
-        });
-    }, 100);
-};
-
-
-const saveEdits = async () => {
-  if (!editorRef.current) return;
-
-  try {
-    const outputData = await editorRef.current.save();
-    
-    setSections(prevSections => 
-      prevSections.map(section =>
-        section.title === editingSection
-          ? { ...section, content: JSON.stringify(outputData) } // Remove `null, 2` for clean JSON
-          : section
-      )
-    );
-
+  const saveEdits = () => {
+    setSections(sections.map(section => 
+      section.title === editingSection
+        ? { ...section, content: editContent.replace(/\n/g, '<br/>') }
+        : section
+    ));
     setEditingSection(null);
-  } catch (error) {
-    console.error("Error saving edits:", error);
-  }
-};
+  };
+
   const cancelEditing = () => {
     setEditingSection(null);
+    setEditContent("");
   };
 
   return (
@@ -419,8 +359,11 @@ const saveEdits = async () => {
                       <div className="px-6 py-4 bg-gray-50">
                         {editingSection === section.title ? (
                           <div className="space-y-4">
-                            <div id="editor-js-container" className="border p-4 rounded-lg bg-white shadow-sm"></div>
-
+                            <textarea
+                              value={editContent}
+                              onChange={(e) => setEditContent(e.target.value)}
+                              className="w-full h-64 p-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                            />
                             <div className="flex justify-end gap-2">
                               <button
                                 onClick={cancelEditing}
@@ -439,30 +382,13 @@ const saveEdits = async () => {
                             </div>
                           </div>
                         ) : (
-                          <div>
-                          {(() => {
-                            try {
-                              const contentData = section.content ? JSON.parse(section.content) : null;
-                              return (
-                                <div
-                                  dangerouslySetInnerHTML={{
-                                    __html: DOMPurify.sanitize(
-                                      contentData
-                                        ? contentData.blocks.map((block: any) => `<p>${block.data.text}</p>`).join('\n')
-                                        : section.content // If not JSON, render as-is
-                                    ),
-                                  }}
-                                />
-                              );
-                            } catch (error) {
-                              console.error("Error parsing section content:", error);
-                              return <p>{section.content}</p>; // Render raw text if parsing fails
-                            }
-                          })()}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                          <div
+                            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(section.content) }}
+                            className="prose max-w-none"
+                          />
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
