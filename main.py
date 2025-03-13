@@ -92,3 +92,4 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
                 yield chunk.choices[0].delta.content  # send text in real-time
 
     return StreamingResponse(generate_response(), media_type="text/plain")
+
