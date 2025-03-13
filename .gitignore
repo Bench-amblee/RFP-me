@@ -1,6 +1,5 @@
 .env
 .vercel
-main.py
 
 # Logs
 logs
