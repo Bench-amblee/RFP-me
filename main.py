@@ -30,35 +30,40 @@ app.add_middleware(
 openai_api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=openai_api_key)
 
+def clean_filename(filename):
+    """Ensure the filename is safe and preserves the extension."""
+    name, ext = os.path.splitext(filename)  # Extract filename and extension
+    safe_name = re.sub(r'\W+', '_', name)  # Replace special characters
+    return f"{safe_name}{ext}"  # Reattach the extension
+
 @app.post("/process_rfp/")
 async def process_rfp(file: UploadFile = File(...), description: str = Form(...)):
-    # Ensure temp directory exists
     os.makedirs("temp", exist_ok=True)
 
-    # Clean filename to avoid special character issues
-    safe_filename = re.sub(r'\W+', '_', file.filename)
-    file_path = os.path.join("temp", safe_filename)  # Ensure cross-platform compatibility
+    # Clean filename and set path
+    safe_filename = clean_filename(file.filename)
+    file_path = os.path.join("temp", safe_filename)
 
-    print(f"Saving file to: {file_path}")  # Debugging message
+    print(f"Saving file to: {file_path}")
 
-    # Save uploaded file asynchronously
     try:
         async with aiofiles.open(file_path, "wb") as buffer:
-            while chunk := await file.read(1024):  # Read in chunks
+            while chunk := await file.read(1024):
                 await buffer.write(chunk)
-            await buffer.flush()  # Ensure all data is written
+            await buffer.flush()  
+        await buffer.close()  
 
-        # Confirm file was saved successfully
+        print(f"Checking temp/ directory: {os.listdir('temp')}")
         if not os.path.exists(file_path):
-            print(f"❌ ERROR: File not found after saving -> {file_path}")  # Debugging message
+            print(f"❌ ERROR: File {file_path} still not found after saving.")
             raise FileNotFoundError(f"File {file_path} was not saved properly.")
+
     except Exception as e:
-        print(f"❌ ERROR while saving file: {str(e)}")  # Debugging message
+        print(f"❌ ERROR while saving file: {str(e)}")
         return JSONResponse(content={"error": f"File upload failed: {str(e)}"}, status_code=500)
 
-    print(f"✅ File successfully saved: {file_path}")  # Debugging message
+    print(f"✅ File successfully saved: {file_path}")
 
-    # Extract text from the document
     try:
         extracted_text = textract.process(file_path).decode("utf-8")
         print(f"✅ Extracted text (first 500 chars): {extracted_text[:500]}")
@@ -66,17 +71,14 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
         extracted_text = f"Error reading file: {str(e)}"
         print(f"❌ ERROR extracting text: {str(e)}")
 
-    # Remove file after extraction
     try:
         os.remove(file_path)
         print(f"✅ Successfully deleted file: {file_path}")
     except Exception as e:
         print(f"❌ ERROR deleting file: {str(e)}")
 
-    # Define the AI prompt
     system_prompt = f"""
     Company Description: {description}
-
     You are a professional proposal writer. Your task is to generate a well-structured and visually appealing RFP (Request for Proposal) response tailored to the company’s description and tone.
 
     ### **Response Format (JSON Output Required)**
@@ -96,11 +98,9 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
 
     ### **RFP Content to Respond To:**
     {extracted_text}
-
-    Ensure the response is **well-organized**, professional, and adheres to best practices for proposal writing.
     """
 
-    print("🚀 Sending request to OpenAI...")  # Debugging message
+    print("🚀 Sending request to OpenAI...")
 
     response = client.chat.completions.create(
         model="gpt-4-turbo",
@@ -112,14 +112,13 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
         response_format={"type": "json_object"}
     )
 
-    # Extract response content
     response_content = response.choices[0].message.content
 
     try:
-        structured_response = json.loads(response_content)  # Ensure valid JSON
+        structured_response = json.loads(response_content)
     except json.JSONDecodeError:
-        print("❌ ERROR: Invalid JSON response from OpenAI")  # Debugging message
+        print("❌ ERROR: Invalid JSON response from OpenAI")
         structured_response = {"error": "Invalid JSON response from AI."}
 
-    print("✅ Returning AI-generated response")  # Debugging message
+    print("✅ Returning AI-generated response")
     return JSONResponse(content=structured_response)
