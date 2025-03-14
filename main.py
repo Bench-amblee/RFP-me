@@ -37,31 +37,41 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
 
     # Clean filename to avoid special character issues
     safe_filename = re.sub(r'\W+', '_', file.filename)
-    file_path = f"temp/{safe_filename}"
+    file_path = os.path.join("temp", safe_filename)  # Ensure cross-platform compatibility
 
     print(f"Saving file to: {file_path}")  # Debugging message
 
     # Save uploaded file asynchronously
-    async with aiofiles.open(file_path, "wb") as buffer:
-        while chunk := await file.read(1024):  # Read in chunks
-            await buffer.write(chunk)
+    try:
+        async with aiofiles.open(file_path, "wb") as buffer:
+            while chunk := await file.read(1024):  # Read in chunks
+                await buffer.write(chunk)
+            await buffer.flush()  # Ensure all data is written
 
-    # Ensure file exists before proceeding
-    if not os.path.exists(file_path):
-        print(f"Error: File not found -> {file_path}")  # Debugging message
-        raise FileNotFoundError(f"File {file_path} was not saved properly.")
+        # Confirm file was saved successfully
+        if not os.path.exists(file_path):
+            print(f"❌ ERROR: File not found after saving -> {file_path}")  # Debugging message
+            raise FileNotFoundError(f"File {file_path} was not saved properly.")
+    except Exception as e:
+        print(f"❌ ERROR while saving file: {str(e)}")  # Debugging message
+        return JSONResponse(content={"error": f"File upload failed: {str(e)}"}, status_code=500)
+
+    print(f"✅ File successfully saved: {file_path}")  # Debugging message
 
     # Extract text from the document
     try:
         extracted_text = textract.process(file_path).decode("utf-8")
+        print(f"✅ Extracted text (first 500 chars): {extracted_text[:500]}")
     except Exception as e:
         extracted_text = f"Error reading file: {str(e)}"
-    
-    # Debugging message
-    print(f"Extracted Text (First 500 chars): {extracted_text[:500]}")
+        print(f"❌ ERROR extracting text: {str(e)}")
 
     # Remove file after extraction
-    os.remove(file_path)
+    try:
+        os.remove(file_path)
+        print(f"✅ Successfully deleted file: {file_path}")
+    except Exception as e:
+        print(f"❌ ERROR deleting file: {str(e)}")
 
     # Define the AI prompt
     system_prompt = f"""
@@ -90,7 +100,7 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
     Ensure the response is **well-organized**, professional, and adheres to best practices for proposal writing.
     """
 
-    print("Sending request to OpenAI...")  # Debugging message
+    print("🚀 Sending request to OpenAI...")  # Debugging message
 
     response = client.chat.completions.create(
         model="gpt-4-turbo",
@@ -108,8 +118,8 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
     try:
         structured_response = json.loads(response_content)  # Ensure valid JSON
     except json.JSONDecodeError:
-        print("Error: Invalid JSON response from OpenAI")  # Debugging message
+        print("❌ ERROR: Invalid JSON response from OpenAI")  # Debugging message
         structured_response = {"error": "Invalid JSON response from AI."}
 
-    print("Returning AI-generated response")  # Debugging message
+    print("✅ Returning AI-generated response")  # Debugging message
     return JSONResponse(content=structured_response)
