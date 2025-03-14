@@ -1,12 +1,12 @@
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse
 from openai import OpenAI
-import shutil
 import os
-from dotenv import load_dotenv
 import textract
 import aiofiles  # For async file handling
+import json
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -52,43 +52,66 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
     # Define the AI prompt
     system_prompt = f"""
     Company Description: {description}
-    
+
     You are a professional proposal writer. Your task is to generate a well-structured and visually appealing RFP (Request for Proposal) response tailored to the company’s description and tone.
 
-    The response should be organized into the following sections:
+    ### **Response Format (JSON Output Required)**
+    Your response **must be formatted as valid JSON** with an array of sections, where each section contains:
+    - A `"title"` field (e.g., "Executive Summary", "Project Approach").
+    - A `"content"` field containing structured content in JSON format, with:
+      - `"type"`: "paragraph" or "list"
+      - `"data"`: The actual text or bullet points.
+
+    **Example JSON Output:**
+    ```json
+    [
+      {
+        "title": "Executive Summary",
+        "content": [
+          { "type": "paragraph", "data": "Our company brings 10+ years of expertise in software development..." },
+          { "type": "list", "data": ["Custom AI-driven solutions", "Proven track record in RFP responses"] }
+        ]
+      },
+      {
+        "title": "Project Approach",
+        "content": [
+          { "type": "paragraph", "data": "Our approach is structured around three key phases..." },
+          { "type": "list", "data": ["Phase 1: Discovery & Planning", "Phase 2: Implementation", "Phase 3: Quality Assurance"] }
+        ]
+      }
+    ]
+    ```
+
+    Ensure the response is **properly structured JSON** that follows this format.
+
+    ### **Sections to Include:**
     - Executive Summary
     - Project Approach
     - Pricing and Deliverables
     - Conclusion
 
-    Each section will have its own page so remember to make the content relevant and visually appealing by adding in bullet points, tables, and headings.
-
-
-    ### **Response Format:**
-    - Use **clear section headings** (e.g., Executive Summary, Technical Approach, Past Performance).
-    - Use **bullet points** for key details when appropriate.
-    - Keep **paragraphs concise** for readability.
-    - Add space between sections for **visual appeal**.
-    - Maintain **professional and formal tone**.
-
     ### **RFP Content to Respond To:**
     {extracted_text}
 
-    Ensure the response is **well-organized** and adheres to best practices for professional proposals.
+    Ensure the response is **well-organized**, professional, and adheres to best practices for proposal writing.
     """
 
-    async def generate_response():
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are an expert at writing RFP responses."},
-                {"role": "user", "content": system_prompt},
-            ],
-            stream=True,  # Enables streaming
-        )
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are an expert at writing RFP responses in structured JSON format."},
+            {"role": "user", "content": system_prompt},
+        ],
+        temperature=0.7,
+        response_format="json",  # Ensures JSON response
+    )
 
-        for chunk in response:
-            if hasattr(chunk.choices[0].delta, "content"): #check if content exists
-                yield chunk.choices[0].delta.content  # send text in real-time
+    # Extract response content
+    response_content = response.choices[0].message.content
 
-    return StreamingResponse(generate_response(), media_type="text/plain")
+    try:
+        structured_response = json.loads(response_content)  # Ensure valid JSON
+    except json.JSONDecodeError:
+        structured_response = {"error": "Invalid JSON response from AI."}
+
+    return JSONResponse(content=structured_response)
