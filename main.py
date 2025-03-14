@@ -62,26 +62,6 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
       - `"type"`: "paragraph" or "list"
       - `"data"`: The actual text or bullet points.
 
-    **Example JSON Output:**
-    ```json
-    [
-      {
-        "title": "Executive Summary",
-        "content": [
-          { "type": "paragraph", "data": "Our company brings 10+ years of expertise in software development..." },
-          { "type": "list", "data": ["Custom AI-driven solutions", "Proven track record in RFP responses"] }
-        ]
-      },
-      {
-        "title": "Project Approach",
-        "content": [
-          { "type": "paragraph", "data": "Our approach is structured around three key phases..." },
-          { "type": "list", "data": ["Phase 1: Discovery & Planning", "Phase 2: Implementation", "Phase 3: Quality Assurance"] }
-        ]
-      }
-    ]
-    ```
-
     Ensure the response is **properly structured JSON** that follows this format.
 
     ### **Sections to Include:**
@@ -97,13 +77,13 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
     """
 
     response = client.chat.completions.create(
-        model="gpt-4",
+        model="gpt-4-turbo",
         messages=[
             {"role": "system", "content": "You are an expert at writing RFP responses in structured JSON format."},
             {"role": "user", "content": system_prompt},
         ],
         temperature=0.7,
-        response_format="json",  # Ensures JSON response
+        response_format={"type": "json_object"}
     )
 
     # Extract response content

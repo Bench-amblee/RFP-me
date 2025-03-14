@@ -12,7 +12,7 @@ import Navbar from "./Navbar";
 import CustomizationPanel from './CustomizationPanel';
 
 const API_BASE_URL = "https://rfp-me-backend.onrender.com";
-const TEST_MODE = true;
+const TEST_MODE = false;
 
 interface Section {
   title: string;
