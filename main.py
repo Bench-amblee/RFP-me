@@ -1,13 +1,15 @@
-from fastapi import FastAPI, File, UploadFile, Form
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from openai import OpenAI
 import os
-import textract
-import aiofiles  # For async file handling
+import re
 import json
+import aiofiles
+import textract
 from dotenv import load_dotenv
+from fastapi import FastAPI, UploadFile, File, Form
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from openai import OpenAI
 
+# Load environment variables
 load_dotenv()
 
 app = FastAPI()
@@ -30,21 +32,33 @@ client = OpenAI(api_key=openai_api_key)
 
 @app.post("/process_rfp/")
 async def process_rfp(file: UploadFile = File(...), description: str = Form(...)):
-    file_path = f"temp/{file.filename}"
-
     # Ensure temp directory exists
     os.makedirs("temp", exist_ok=True)
+
+    # Clean filename to avoid special character issues
+    safe_filename = re.sub(r'\W+', '_', file.filename)
+    file_path = f"temp/{safe_filename}"
+
+    print(f"Saving file to: {file_path}")  # Debugging message
 
     # Save uploaded file asynchronously
     async with aiofiles.open(file_path, "wb") as buffer:
         while chunk := await file.read(1024):  # Read in chunks
             await buffer.write(chunk)
 
+    # Ensure file exists before proceeding
+    if not os.path.exists(file_path):
+        print(f"Error: File not found -> {file_path}")  # Debugging message
+        raise FileNotFoundError(f"File {file_path} was not saved properly.")
+
     # Extract text from the document
     try:
         extracted_text = textract.process(file_path).decode("utf-8")
     except Exception as e:
         extracted_text = f"Error reading file: {str(e)}"
+    
+    # Debugging message
+    print(f"Extracted Text (First 500 chars): {extracted_text[:500]}")
 
     # Remove file after extraction
     os.remove(file_path)
@@ -76,6 +90,8 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
     Ensure the response is **well-organized**, professional, and adheres to best practices for proposal writing.
     """
 
+    print("Sending request to OpenAI...")  # Debugging message
+
     response = client.chat.completions.create(
         model="gpt-4-turbo",
         messages=[
@@ -92,6 +108,8 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
     try:
         structured_response = json.loads(response_content)  # Ensure valid JSON
     except json.JSONDecodeError:
+        print("Error: Invalid JSON response from OpenAI")  # Debugging message
         structured_response = {"error": "Invalid JSON response from AI."}
 
+    print("Returning AI-generated response")  # Debugging message
     return JSONResponse(content=structured_response)
