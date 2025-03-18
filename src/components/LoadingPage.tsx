@@ -25,7 +25,10 @@ const LoadingPage = () => {
           const staticResponse = {
             response: [
               { title: "Executive Summary", content: JSON.stringify({ blocks: [{ type: "paragraph", data: { text: "Thank you for considering us..." } }] }) },
-              { title: "Project Approach", content: JSON.stringify({ blocks: [{ type: "paragraph", data: { text: "We follow a structured methodology..." } }] }) }
+              { title: "Project Approach", content: JSON.stringify({ blocks: [{ type: "paragraph", data: { text: "We follow a structured methodology..." } }] }) },
+              { title: "Pricing and Deliverables", content: JSON.stringify({ blocks: [{ type: "paragraph", data: { text: "Our team will create high quality deliverables..." } }] }) },
+              { title: "Conclusion", content: JSON.stringify({ blocks: [{ type: "paragraph", data: { text: "We will ensure high quality work..." } }] }) },
+
             ]
           };
 
