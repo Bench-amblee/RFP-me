@@ -2,7 +2,6 @@ import React, { useEffect, useState, useContext, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import DOMPurify from "dompurify";
 import edjsHTML from "editorjs-html";
-import html2pdf from "html2pdf.js";
 import EditorJS from '@editorjs/editorjs';
 import Header from '@editorjs/header';
 import List from '@editorjs/list';
@@ -11,6 +10,9 @@ import { ChevronDown, ChevronUp, Edit2, Save, X, FileDown, ArrowLeft, } from 'lu
 import Navbar from "./Navbar";
 import CustomizationPanel from './CustomizationPanel';
 import RfpContext from "./RfpContext";
+import pdfMake from 'pdfmake/build/pdfmake';
+import 'pdfmake/build/vfs_fonts';
+
 
 interface Section {
   title: string;
@@ -89,103 +91,126 @@ const convertContentToHTML = (content) => {
 
 
 const generatePDF = (styles) => {
+  console.log("Starting PDF generation");
+  
   if (!sections.length) {
     alert("The response is still generating. Please wait!");
     return;
   }
 
   const fileName = `${companyName.replace(/\s+/g, '_')}_RFP_Response.pdf`;
-
-  const printContent = document.createElement("div");
-  printContent.id = "print-content";
-
-  const customStyles = `
-  <style>
-    body { font-family: ${styles.fontFamily || 'Arial'}, sans-serif; color: ${styles.textColor || '#333'}; }
-    h1 { font-size: 32px; color: ${styles.textColor || '#333'}; text-align: center; margin-top: 50px; font-weight: 700; }
-    h2 { font-size: ${styles.headingFontSize || '24px'}; color: ${styles.headingColor || '#333'}; margin-top: 20px; padding-top: 20px; font-weight: 600; }
-    p { font-size: ${styles.textFontSize || '16px'}; line-height: 1.8; margin: 12px 0; color: ${styles.textColor || '#333'}; }
-    strong { font-weight: bold; } 
-    em { font-style: italic; } 
-    u { text-decoration: underline; }
-    
-    /* Improved list styling */
-    ul { list-style-type: disc !important; margin-left: 20px !important; padding-left: 20px !important; }
-    ol { list-style-type: decimal !important; margin-left: 20px !important; padding-left: 20px !important; }
-    li { margin-bottom: 8px !important; display: list-item !important; }
-    
-    /* Ensure each section starts on a new page with consistent positioning */
-    .section {
-        page-break-before: always;
-        padding: 40px;
-        position: relative;
-    }
-    
-    /* Add specific styling for section headings */
-    .section h2 {
-        position: relative;
-        top: 0;
-        margin-top: 20px;
-        margin-bottom: 30px;
-    }
-  </style>
-`;
-
-  const titlePage = document.createElement("div");
-  titlePage.className = "title-page";
-  titlePage.innerHTML = `
-    ${customStyles}
-    <h1>RFP Response Document</h1>
-    <div class="metadata">
-      <p><strong>Company:</strong> ${companyName}</p>
-      <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
-      ${projectName ? `<p><strong>Project Name:</strong> ${projectName}</p>` : ""}
-    </div>
-  `;
-  printContent.appendChild(titlePage);
-
-  sections.forEach((section) => {
-    const sectionDiv = document.createElement("div");
-    sectionDiv.className = "section";
-    
-    // Create the heading element separately
-    const headingElement = document.createElement("h2");
-    headingElement.textContent = section.title;
-    headingElement.style.color = styles.headingColor || '#333';
-    
-    sectionDiv.appendChild(headingElement);
-    
-    // Create the content container
-    const contentDiv = document.createElement("div");
-    contentDiv.style.color = styles.textColor || '#333';
-    contentDiv.style.fontFamily = styles.fontFamily || 'Arial';
-    contentDiv.innerHTML = convertContentToHTML(section.content);
-    
-    sectionDiv.appendChild(contentDiv);
-    printContent.appendChild(sectionDiv);
-  });
-
-  document.body.appendChild(printContent);
-  printContent.style.display = "block";
-
-  const options = {
-    margin: [20, 20, 20, 20],
-    filename: fileName,
-    image: { type: "jpeg", quality: 1 },
-    html2canvas: { 
-      scale: 3, // Higher scale for better quality
-      useCORS: true,
-      dpi: 300, 
-      letterRendering: true // Ensures proper text rendering
-    },
-    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-  };
-
-  setTimeout(() => {
-    html2pdf().set(options).from(printContent).save().then(() => {
-      document.body.removeChild(printContent);
+  
+  // Build document content
+  const content = [];
+  
+  // Add title page
+  content.push(
+    { text: 'RFP Response Document', fontSize: 24, alignment: 'center', margin: [0, 50, 0, 20] },
+    { text: `Company: ${companyName}`, margin: [0, 5] },
+    { text: `Date: ${new Date().toLocaleDateString()}`, margin: [0, 5] },
+  );
+  
+  // Process each section
+  sections.forEach(section => {
+    // Add section heading
+    content.push({ 
+      text: section.title, 
+      fontSize: 18,
+      margin: [0, 20, 0, 10], 
+      pageBreak: 'before' 
     });
-  }, 500);
+    
+    // Extract the actual content from various possible formats
+    let sectionContent = '';
+    let listItems = [];
+    
+    try {
+      // If content is stored in the API format with type and data
+      if (section.content && typeof section.content === 'object') {
+        if (section.content.type === 'paragraph' && section.content.data) {
+          // Preserve line breaks in PDFs by using an array of text objects
+          const lines = section.content.data.split('\n');
+          lines.forEach((line, idx) => {
+            content.push({
+              text: line,
+              fontSize: 12,
+              margin: idx === 0 ? [0, 10, 0, 0] : [0, 5, 0, 0]
+            });
+          });
+        } else if (section.content.type === 'list' && Array.isArray(section.content.data)) {
+          listItems = section.content.data;
+          hasContent = true;
+        }
+      }
+      // If content is stored as Editor.js JSON string
+      else if (typeof section.content === 'string') {
+        try {
+          const parsedContent = JSON.parse(section.content);
+          
+          if (parsedContent.blocks && Array.isArray(parsedContent.blocks)) {
+            // Combine all blocks into a single content string
+            sectionContent = parsedContent.blocks
+              .filter(block => block.type === 'paragraph')
+              .map(block => block.data.text)
+              .join('\n\n');
+              
+            // Extract list items if any
+            const listBlocks = parsedContent.blocks.filter(block => block.type === 'list');
+            if (listBlocks.length > 0 && listBlocks[0].data.items) {
+              listItems = listBlocks[0].data.items;
+            }
+          }
+        } catch (e) {
+          // If it's not valid JSON, use it as plain text
+          sectionContent = section.content;
+        }
+      }
+      
+      // Add the extracted content to the PDF
+      if (sectionContent) {
+        content.push({ 
+          text: sectionContent, 
+          fontSize: 12,
+          margin: [0, 10, 0, 15] 
+        });
+      }
+      
+      // Add list items if any
+      if (listItems.length > 0) {
+        content.push({
+          ul: listItems.map(item => ({
+            text: item,
+            margin: [0, 5]
+          }))
+        });
+      }
+      
+    } catch (error) {
+      console.error(`Error processing section ${section.title}:`, error);
+      // Fallback to displaying raw content
+      content.push({ 
+        text: `[Error displaying content: ${error.message}]`, 
+        fontSize: 12,
+        margin: [0, 10, 0, 15],
+        color: 'red'
+      });
+    }
+  });
+  
+  // Define document
+  const docDefinition = {
+    content: content,
+    defaultStyle: {
+      fontSize: 12
+    }
+  };
+  
+  try {
+    console.log("Creating PDF with pdfMake");
+    pdfMake.createPdf(docDefinition).download(fileName);
+  } catch (error) {
+    console.error("Error generating PDF:", error);
+  }
 };
 
 
@@ -235,38 +260,89 @@ const generatePDF = (styles) => {
   };
 
   const startEditing = (section) => {
+    console.log("Starting editing for:", section.title);
     setEditingSection(section.title);
   
     if (editorRef.current) {
       editorRef.current.destroy();
     }
   
-    // Create editor.js data format based on the content
+    // Create editor.js data structure
     let editorData = { blocks: [] };
     
-    if (section.content) {
-      if (section.content.type === 'paragraph') {
-        editorData = {
-          blocks: [{
-            type: 'paragraph',
-            data: {
-              text: section.content.data
-            }
-          }]
-        };
-      } else if (section.content.type === 'list' && Array.isArray(section.content.data)) {
-        editorData = {
-          blocks: [{
-            type: 'list',
-            data: {
-              style: 'unordered',
-              items: section.content.data
-            }
-          }]
-        };
+    try {
+      // Handle API format (type + data)
+      if (section.content && typeof section.content === 'object') {
+        console.log("Processing API format content:", section.content);
+        
+        if (section.content.type === 'paragraph') {
+          // Add paragraph block
+          editorData = {
+            blocks: [{
+              type: 'paragraph',
+              data: {
+                text: section.content.data
+              }
+            }]
+          };
+        } else if (section.content.type === 'list' && Array.isArray(section.content.data)) {
+          // Add list block
+          editorData = {
+            blocks: [{
+              type: 'list',
+              data: {
+                style: 'unordered',
+                items: section.content.data
+              }
+            }]
+          };
+        }
+      } 
+      // Try to parse if it's a JSON string (Editor.js format)
+      else if (typeof section.content === 'string') {
+        try {
+          const parsedContent = JSON.parse(section.content);
+          if (parsedContent.blocks) {
+            editorData = parsedContent;
+          } else {
+            // If it's JSON but not in Editor.js format
+            editorData = {
+              blocks: [{
+                type: 'paragraph',
+                data: {
+                  text: section.content
+                }
+              }]
+            };
+          }
+        } catch (e) {
+          // If it's not valid JSON, use as plain text
+          editorData = {
+            blocks: [{
+              type: 'paragraph',
+              data: {
+                text: section.content
+              }
+            }]
+          };
+        }
       }
+      
+      console.log("Initializing editor with data:", editorData);
+    } catch (error) {
+      console.error("Error preparing content for editor:", error);
+      // Initialize with empty block on error
+      editorData = {
+        blocks: [{
+          type: 'paragraph',
+          data: {
+            text: ''
+          }
+        }]
+      };
     }
   
+    // Initialize the editor with a short delay
     setTimeout(() => {
       editorRef.current = new EditorJS({
         holder: 'editor-js-container',
@@ -286,25 +362,48 @@ const generatePDF = (styles) => {
   
     try {
       const outputData = await editorRef.current.save();
+      console.log("Editor saved data:", outputData);
       
-      // Convert Editor.js format back to your API format
-      let newContent = { type: 'paragraph', data: '' };
+      // Extract text content from each block for API format
+      let paragraphContent = "";
+      let listItems = [];
       
       if (outputData.blocks && outputData.blocks.length > 0) {
-        const block = outputData.blocks[0];
-        if (block.type === 'paragraph') {
-          newContent = {
-            type: 'paragraph',
-            data: block.data.text
-          };
-        } else if (block.type === 'list') {
-          newContent = {
-            type: 'list',
-            data: block.data.items
-          };
-        }
+        outputData.blocks.forEach((block, index) => {
+          if (block.type === 'paragraph') {
+            // Append paragraph text with proper line breaks
+            if (paragraphContent) {
+              // Add double newline between paragraphs
+              paragraphContent += "\n\n" + block.data.text;
+            } else {
+              paragraphContent = block.data.text;
+            }
+          } else if (block.type === 'list' && block.data.items) {
+            // Collect list items
+            listItems = [...listItems, ...block.data.items];
+          }
+        });
       }
-  
+      
+      // Determine content format to save
+      let newContent;
+      if (listItems.length > 0) {
+        // If list items were found, save as list type
+        newContent = {
+          type: 'list',
+          data: listItems
+        };
+      } else {
+        // Otherwise save as paragraph type
+        newContent = {
+          type: 'paragraph',
+          data: paragraphContent || ""
+        };
+      }
+      
+      console.log("Saving section with content:", newContent);
+      
+      // Update sections with the new content
       setSections(prevSections =>
         prevSections.map(section =>
           section.title === editingSection
@@ -318,6 +417,7 @@ const generatePDF = (styles) => {
       console.error("Error saving edits:", error);
     }
   };
+
   const cancelEditing = () => {
     setEditingSection(null);
   };
@@ -464,7 +564,17 @@ const generatePDF = (styles) => {
                                 // Check if content is in the format returned by your API
                                 if (contentObj && (contentObj.type === 'paragraph' || contentObj.type === 'list')) {
                                   if (contentObj.type === 'paragraph') {
-                                    return <p>{contentObj.data}</p>;
+                                    // Split paragraph text by newlines and add <br> tags
+                                    const formattedText = contentObj.data
+                                      .split('\n')
+                                      .map((line, index) => (
+                                        <React.Fragment key={index}>
+                                          {line}
+                                          {index < contentObj.data.split('\n').length - 1 && <br />}
+                                        </React.Fragment>
+                                      ));
+                                    
+                                    return <p>{formattedText}</p>;
                                   } else if (contentObj.type === 'list' && Array.isArray(contentObj.data)) {
                                     return (
                                       <ul className="list-disc pl-5 space-y-2">
@@ -478,8 +588,8 @@ const generatePDF = (styles) => {
                                 
                                 // Try to handle it as Editor.js content (fallback)
                                 try {
-                                  const editorContent = typeof contentObj === 'string' 
-                                    ? JSON.parse(contentObj) 
+                                  const editorContent = typeof contentObj === 'string'
+                                    ? JSON.parse(contentObj)
                                     : contentObj;
                                     
                                   if (editorContent && editorContent.blocks) {
@@ -489,13 +599,15 @@ const generatePDF = (styles) => {
                                           __html: DOMPurify.sanitize(
                                             editorContent.blocks.map((block) => {
                                               if (block.type === 'paragraph') {
-                                                return `<p>${block.data.text}</p>`;
+                                                // Preserve line breaks in paragraph content
+                                                const text = block.data.text.replace(/\n/g, '<br>');
+                                                return `<p>${text}</p>`;
                                               } else if (block.type === 'list') {
                                                 const listItems = block.data.items
                                                   .map(item => `<li>${item}</li>`)
                                                   .join('');
-                                                return block.data.style === 'unordered' 
-                                                  ? `<ul>${listItems}</ul>` 
+                                                return block.data.style === 'unordered'
+                                                  ? `<ul>${listItems}</ul>`
                                                   : `<ol>${listItems}</ol>`;
                                               } else {
                                                 return '';
