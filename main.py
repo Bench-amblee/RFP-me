@@ -48,11 +48,14 @@ async def process_rfp(file: UploadFile = File(...), description: str = Form(...)
 
     try:
         async with aiofiles.open(file_path, "wb") as buffer:
-            while chunk := await file.read(1024):
-                await buffer.write(chunk)
-            await buffer.flush()  
-        await buffer.close()  
-
+            # Read the entire file content
+            content = await file.read()
+            # Write it to the buffer
+            await buffer.write(content)
+            # Flush to ensure everything is written
+            await buffer.flush()
+    
+    # Check if file exists after saving
         print(f"Checking temp/ directory: {os.listdir('temp')}")
         if not os.path.exists(file_path):
             print(f"❌ ERROR: File {file_path} still not found after saving.")
