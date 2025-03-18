@@ -7,7 +7,7 @@ import EditorJS from '@editorjs/editorjs';
 import Header from '@editorjs/header';
 import List from '@editorjs/list';
 import Paragraph from '@editorjs/paragraph';
-import { ChevronDown, ChevronUp, Edit2, Save, X, FileDown, ArrowLeft, Eye } from 'lucide-react';
+import { ChevronDown, ChevronUp, Edit2, Save, X, FileDown, ArrowLeft, } from 'lucide-react';
 import Navbar from "./Navbar";
 import CustomizationPanel from './CustomizationPanel';
 import RfpContext from "./RfpContext";
@@ -19,11 +19,10 @@ interface Section {
 
 const ReviewPage = () => {
   const [sections, setSections] = useState<Section[]>([]);
-  const [projectName, setProjectName] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [projectName] = useState<string | null>(null);
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const editorRef = useRef<EditorJS | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen] = useState(true);
   const navigate = useNavigate();
   const [expandedSections, setExpandedSections] = useState(["Title Page"]);
   
