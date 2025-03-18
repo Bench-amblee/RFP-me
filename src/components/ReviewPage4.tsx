@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useContext, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useState, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import DOMPurify from "dompurify";
 import edjsHTML from "editorjs-html";
 import html2pdf from "html2pdf.js";
@@ -10,7 +10,9 @@ import Paragraph from '@editorjs/paragraph';
 import { ChevronDown, ChevronUp, Edit2, Save, X, FileDown, ArrowLeft, Eye } from 'lucide-react';
 import Navbar from "./Navbar";
 import CustomizationPanel from './CustomizationPanel';
-import RfpContext from "./RfpContext";
+
+const API_BASE_URL = "https://rfp-me-backend.onrender.com";
+const TEST_MODE = false;
 
 interface Section {
   title: string;
@@ -25,9 +27,8 @@ const ReviewPage = () => {
   const editorRef = useRef<EditorJS | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
   const [expandedSections, setExpandedSections] = useState(["Title Page"]);
-  
-
 
   useEffect(() => {
     if (sections.length > 0) {
@@ -40,11 +41,7 @@ const ReviewPage = () => {
     fontFamily: 'Arial',
 });
 
-const context = useContext(RfpContext);
-    if (!context) {
-  throw new Error("ReviewPage must be used within an RfpProvider");
-    }
-const { companyName, companyDescription, file, responseData } = context;
+  const { companyName, companyDescription, selectedFile } = location.state || {};
 
   const convertTextFormatting = (text) => {
     if (!text) return "";
@@ -158,35 +155,103 @@ const generatePDF = (styles) => {
 
 
   useEffect(() => {
-    if (!file || !companyName || !companyDescription) {
+    if (!selectedFile || !companyName || !companyDescription) {
       alert("Missing required data. Redirecting...");
       navigate("/");
       return;
     }
-    parseAndSetSections(responseData || "[]"); // Default to empty array if responseData is null or undefined
-  }, [file, companyName, companyDescription, responseData, navigate]);
+
+    setIsLoading(true);
+
+    if (TEST_MODE) {
+
+      const staticResponse = {
+        time: Date.now(),
+        blocks: [
+          { type: "header", data: { text: "Executive Summary", level: 2 } },
+          { type: "paragraph", data: { text: "Thank you for considering us for your project..." } },
+          { type: "header", data: { text: "Project Approach", level: 2 } },
+          { type: "paragraph", data: { text: "We follow a structured methodology to ensure project success..." } },
+          { type: "header", data: { text: "Pricing and Deliverables", level: 2 } },
+          { type: "paragraph", data: { text: "Our pricing model is flexible and transparent..." } },
+          { type: "header", data: { text: "Conclusion", level: 2 } },
+          { type: "paragraph", data: { text: "We look forward to collaborating and driving success together..." } }
+        ]
+      };
+
+      parseAndSetSections(JSON.stringify(staticResponse));
+      setIsLoading(false);
+    } else {
+      const fetchAIResponse = async () => {
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+        formData.append("description", companyDescription);
+    
+        try {
+            const res = await fetch(`${API_BASE_URL}/process_rfp`, {
+                method: "POST",
+                body: formData,
+            });
+    
+            const responseText = await res.text();
+            console.log("Raw API Response:", responseText);
+    
+            const parsedData = JSON.parse(responseText);
+    
+            // ✅ Check if the response contains an error
+            if (parsedData.error) {
+                console.error("Backend Error:", parsedData.error);
+                alert(`Error: ${parsedData.error}`); // Show an alert for user feedback
+                return;
+            }
+    
+            // ✅ Check if response key exists and is an array
+            if (!parsedData.response || !Array.isArray(parsedData.response)) {
+                console.error("Unexpected response format:", parsedData);
+                alert("Unexpected response format. Please try again.");
+                return;
+            }
+    
+            parseAndSetSections(responseText);
+            setIsLoading(false);
+    
+        } catch (error) {
+            console.error("Fetch error:", error);
+            alert("An error occurred while fetching data. Please try again.");
+        }
+    };
+
+      fetchAIResponse();
+    }
+  }, [selectedFile, companyName, companyDescription, navigate]);
 
   const parseAndSetSections = (jsonResponse: string) => {
     try {
-      const parsedData = JSON.parse(jsonResponse);
-      console.log("Parsed JSON:", parsedData); // Debugging
-  
-      if (!parsedData.response || !Array.isArray(parsedData.response)) {
-        throw new Error("Unexpected response format");
-      }
-  
-      const newSections: Section[] = parsedData.response.map((section: any) => ({
-        title: section.title,
-        content: section.content, // This is already in JSON format
-      }));
-  
-      console.log("Parsed Sections:", newSections);
-      setSections(newSections);
+        const parsedData = JSON.parse(jsonResponse);
+        console.log("Parsed JSON:", parsedData); // Debugging
+
+        // Check for response format variations
+        const sectionsArray = parsedData.response || parsedData.sections;
+        
+        if (!sectionsArray || !Array.isArray(sectionsArray)) {
+            console.error("Invalid response format:", parsedData);
+            return;
+        }
+
+        const sections = sectionsArray.map((section) => ({
+            title: section.title || "Untitled Section", // Fallback for missing titles
+            content: section.content?.data || "", // Ensure content exists
+            type: section.content?.type || "paragraph", // Default type
+        }));
+
+        setSections(sections);
     } catch (error) {
-      console.error("Error parsing JSON response:", error);
+        console.error("Error parsing JSON response:", error);
     }
-  };
+};
   
+  
+
   const toggleSection = (sectionTitle: string) => {
     setExpandedSections(prevExpanded => 
       prevExpanded.includes(sectionTitle)
@@ -308,6 +373,15 @@ const saveEdits = async () => {
   
             {/* Add Customization Panel Here */}
             <CustomizationPanel setStyles={setStyles} />
+  
+            {isLoading ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                  <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+                  <p className="text-gray-600">Generating your response...</p>
+                </div>
+              </div>
+            ) : (
               <div
                 className="bg-white rounded-xl shadow-lg overflow-hidden"
                 style={{
@@ -409,6 +483,7 @@ const saveEdits = async () => {
                   </div>
                 ))}
               </div>
+            )}
           </div>
         </div>
       </div>

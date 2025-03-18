@@ -1,51 +1,43 @@
-import React, { useState } from "react";
+import React, { useContext, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Upload, Trash2 } from "lucide-react";
 import Navbar from "../components/Navbar";
+import RfpContext from "../components/RfpContext"; // Import the context
 
 const UploadPage = () => {
   const navigate = useNavigate();
 
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [companyName, setCompanyName] = useState("");
-  const [companyDescription, setCompanyDescription] = useState("");
+  // Get context values
+  const context = useContext(RfpContext);
+  if (!context) {
+    throw new Error("RfpContext must be used within an RfpProvider");
+  }
+  const { companyName, setCompanyName, companyDescription, setCompanyDescription, file, setFile } = context;
+
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = () => {
-    console.log("Selected File:", selectedFile);
-    console.log("Company Name:", companyName);
-    console.log("Company Description:", companyDescription);
+    console.log("Submitting with data:", { companyName, companyDescription, file });
 
-    if (!selectedFile || !companyName || !companyDescription) {
+    if (!file || !companyName || !companyDescription) {
       alert("Please fill in all fields.");
       return;
     }
-    console.log("Navigating to review page...",{
-      selectedFile,
-      companyName,
-      companyDescription, 
-    });
-    navigate("/review", {
-      state: {
-        selectedFile,
-        companyName,
-        companyDescription,
-      },
-    }
 
-    );
+    setIsLoading(true);
+    navigate("/loading");
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      console.log("File uploaded:", file.name);
+    const selectedFile = event.target.files?.[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      console.log("File uploaded:", selectedFile.name);
     }
   };
 
   const removeFile = () => {
-    setSelectedFile(null);
+    setFile(null);
     console.log("File removed");
   };
 
@@ -55,16 +47,11 @@ const UploadPage = () => {
       <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-blue-50 via-white to-green-50">
         <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="bg-white p-8 rounded-lg shadow-md">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">
-              Upload Your RFP
-            </h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Upload Your RFP</h2>
 
             {/* File Upload */}
             <div className="mb-6">
-              <label
-                htmlFor="rfp-file"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
+              <label htmlFor="rfp-file" className="block text-sm font-medium text-gray-700 mb-2">
                 RFP Document
               </label>
 
@@ -73,34 +60,21 @@ const UploadPage = () => {
                 onClick={() => document.getElementById("file-upload")?.click()}
               >
                 <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                <p className="mt-2 text-sm text-gray-600">
-                  Drop your RFP document here or click to browse
-                </p>
-                <p className="text-xs text-gray-500">
-                  PDF, DOCX, or TXT files up to 10MB
-                </p>
+                <p className="mt-2 text-sm text-gray-600">Drop your RFP document here or click to browse</p>
+                <p className="text-xs text-gray-500">PDF, DOCX, or TXT files up to 10MB</p>
               </div>
 
-              <input
-                id="file-upload"
-                type="file"
-                accept=".pdf,.doc,.docx,.txt"
-                className="hidden"
-                onChange={handleFileChange}
-              />
+              <input id="file-upload" type="file" accept=".pdf,.doc,.docx,.txt" className="hidden" onChange={handleFileChange} />
             </div>
 
             {/* Display Selected File */}
-            {selectedFile && (
+            {file && (
               <div className="flex justify-between items-center bg-gray-100 p-4 rounded-lg shadow border">
                 <div>
-                  <p className="font-semibold">File: {selectedFile.name}</p>
-                  <p>Size: {(selectedFile.size / 1024).toFixed(2)} KB</p>
+                  <p className="font-semibold">File: {file.name}</p>
+                  <p>Size: {(file.size / 1024).toFixed(2)} KB</p>
                 </div>
-                <button
-                  onClick={removeFile}
-                  className="text-red-500 hover:text-red-700"
-                >
+                <button onClick={removeFile} className="text-red-500 hover:text-red-700">
                   <Trash2 className="h-5 w-5" />
                 </button>
               </div>
@@ -108,10 +82,7 @@ const UploadPage = () => {
 
             {/* Company Name Input */}
             <div className="mb-6">
-              <label
-                htmlFor="company-name"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
+              <label htmlFor="company-name" className="block text-sm font-medium text-gray-700 mb-2">
                 Company Name
               </label>
               <input
@@ -127,10 +98,7 @@ const UploadPage = () => {
 
             {/* Company Description Input */}
             <div className="mb-6">
-              <label
-                htmlFor="company-description"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
+              <label htmlFor="company-description" className="block text-sm font-medium text-gray-700 mb-2">
                 Company Description
               </label>
               <textarea
@@ -145,12 +113,7 @@ const UploadPage = () => {
             </div>
 
             {/* Submit Button */}
-            <button
-              type="submit"
-              onClick={handleSubmit}
-              disabled={isLoading}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-md font-medium"
-            >
+            <button type="submit" onClick={handleSubmit} disabled={isLoading} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-md font-medium">
               Generate RFP Response
             </button>
           </div>
@@ -161,3 +124,4 @@ const UploadPage = () => {
 };
 
 export default UploadPage;
+
