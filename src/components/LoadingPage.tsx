@@ -61,9 +61,11 @@ const LoadingPage = () => {
           alert("Unexpected response format. Please try again.");
           return;
         }
-
+        console.log("Response from API:", parsedData);
+        console.log("Type of parsedData:", typeof parsedData);
+        console.log("Setting response data to:", typeof parsedData === 'string' ? parsedData : JSON.stringify(parsedData));
         // ✅ Store response in RfpContext
-        setResponseData(JSON.stringify(parsedData));
+        setResponseData(typeof parsedData === 'string' ? parsedData : JSON.stringify(parsedData));
 
         setProgress(100);
         navigate("/review");

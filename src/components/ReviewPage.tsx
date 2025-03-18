@@ -62,23 +62,36 @@ const { companyName, companyDescription, file, responseData } = context;
     marker: (block) => `<strong>${block.data.text}</strong>`, // Convert marker (highlight) to bold
 });
 
-const convertEditorJSToHTML = (editorContent) => {
+const convertContentToHTML = (content) => {
   try {
-      if (!editorContent) return "";
-      
-      const parsedContent = JSON.parse(editorContent); // 👈 Parse Editor.js JSON
-      return edjsParser.parse(parsedContent); // 👈 Use edjsHTML parser
+    // If it's already a string, return it
+    if (typeof content === 'string') return content;
+    
+    // Handle your API's content format
+    if (content && typeof content === 'object') {
+      if (content.type === 'paragraph') {
+        return `<p>${convertTextFormatting(content.data)}</p>`;
+      } else if (content.type === 'list' && Array.isArray(content.data)) {
+        // Use proper HTML list with bullet points
+        return `<ul style="list-style-type: disc; padding-left: 20px; margin: 12px 0;">
+          ${content.data.map(item => `<li style="margin-bottom: 8px;">${convertTextFormatting(item)}</li>`).join('')}
+        </ul>`;
+      }
+    }
+    
+    // Rest of your function remains the same
+    // ...
   } catch (error) {
-      console.error("Error parsing EditorJS content:", error);
-      return "";
+    console.error("Error converting content to HTML:", error);
+    return "";
   }
 };
 
 
 const generatePDF = (styles) => {
   if (!sections.length) {
-      alert("The response is still generating. Please wait!");
-      return;
+    alert("The response is still generating. Please wait!");
+    return;
   }
 
   const fileName = `${companyName.replace(/\s+/g, '_')}_RFP_Response.pdf`;
@@ -87,24 +100,35 @@ const generatePDF = (styles) => {
   printContent.id = "print-content";
 
   const customStyles = `
-    <style>
-      body { font-family: ${styles.fontFamily}, sans-serif; color: ${styles.textColor}; }
-      h1 { font-size: 32px; color: ${styles.textColor}; text-align: center; margin-top: 50px; font-weight: 700; }
-      h2 { font-size: ${styles.headingFontSize}; color: ${styles.headingColor}; margin-top: 40px; font-weight: 600; }
-      p { font-size: ${styles.textFontSize}; line-height: 1.8; margin: 12px 0; color: ${styles.textColor}; }
-      strong { font-weight: bold; } 
-      em { font-style: italic; } 
-      u { text-decoration: underline; }
-      ul, ol { margin-left: 20px; }
-      li { margin-bottom: 8px; }
-      span[style*="color"] { color: inherit !important; } /* Preserve inline colors */
-      
-      /* Ensure each section starts on a new page */
-      .section {
-          page-break-before: always;
-          padding: 40px;
-      }
-    </style>
+  <style>
+    body { font-family: ${styles.fontFamily || 'Arial'}, sans-serif; color: ${styles.textColor || '#333'}; }
+    h1 { font-size: 32px; color: ${styles.textColor || '#333'}; text-align: center; margin-top: 50px; font-weight: 700; }
+    h2 { font-size: ${styles.headingFontSize || '24px'}; color: ${styles.headingColor || '#333'}; margin-top: 20px; padding-top: 20px; font-weight: 600; }
+    p { font-size: ${styles.textFontSize || '16px'}; line-height: 1.8; margin: 12px 0; color: ${styles.textColor || '#333'}; }
+    strong { font-weight: bold; } 
+    em { font-style: italic; } 
+    u { text-decoration: underline; }
+    
+    /* Improved list styling */
+    ul { list-style-type: disc !important; margin-left: 20px !important; padding-left: 20px !important; }
+    ol { list-style-type: decimal !important; margin-left: 20px !important; padding-left: 20px !important; }
+    li { margin-bottom: 8px !important; display: list-item !important; }
+    
+    /* Ensure each section starts on a new page with consistent positioning */
+    .section {
+        page-break-before: always;
+        padding: 40px;
+        position: relative;
+    }
+    
+    /* Add specific styling for section headings */
+    .section h2 {
+        position: relative;
+        top: 0;
+        margin-top: 20px;
+        margin-bottom: 30px;
+    }
+  </style>
 `;
 
   const titlePage = document.createElement("div");
@@ -121,42 +145,53 @@ const generatePDF = (styles) => {
   printContent.appendChild(titlePage);
 
   sections.forEach((section) => {
-      const sectionDiv = document.createElement("div");
-      sectionDiv.className = "section";
-      sectionDiv.innerHTML = `
-          <h2 style="color: ${styles.headingColor};">${section.title}</h2>
-          <div style="color: ${styles.textColor}; font-family: ${styles.fontFamily}, sans-serif;">
-              ${convertEditorJSToHTML(section.content)}
-          </div>
-      `;
-      printContent.appendChild(sectionDiv);
+    const sectionDiv = document.createElement("div");
+    sectionDiv.className = "section";
+    
+    // Create the heading element separately
+    const headingElement = document.createElement("h2");
+    headingElement.textContent = section.title;
+    headingElement.style.color = styles.headingColor || '#333';
+    
+    sectionDiv.appendChild(headingElement);
+    
+    // Create the content container
+    const contentDiv = document.createElement("div");
+    contentDiv.style.color = styles.textColor || '#333';
+    contentDiv.style.fontFamily = styles.fontFamily || 'Arial';
+    contentDiv.innerHTML = convertContentToHTML(section.content);
+    
+    sectionDiv.appendChild(contentDiv);
+    printContent.appendChild(sectionDiv);
   });
 
   document.body.appendChild(printContent);
   printContent.style.display = "block";
 
   const options = {
-      margin: [20, 20, 20, 20],
-      filename: fileName,
-      image: { type: "jpeg", quality: 1 },
-      html2canvas: { 
-          scale: 3, // Higher scale for better quality
-          useCORS: true,
-          dpi: 300, 
-          letterRendering: true // Ensures proper text rendering
-      },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    margin: [20, 20, 20, 20],
+    filename: fileName,
+    image: { type: "jpeg", quality: 1 },
+    html2canvas: { 
+      scale: 3, // Higher scale for better quality
+      useCORS: true,
+      dpi: 300, 
+      letterRendering: true // Ensures proper text rendering
+    },
+    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
   };
 
   setTimeout(() => {
-      html2pdf().set(options).from(printContent).save().then(() => {
-          document.body.removeChild(printContent);
-      });
+    html2pdf().set(options).from(printContent).save().then(() => {
+      document.body.removeChild(printContent);
+    });
   }, 500);
 };
 
 
   useEffect(() => {
+    console.log("ResponseData received in ReviewPage:", responseData);
+    console.log("Type of responseData:", typeof responseData);
     if (!file || !companyName || !companyDescription) {
       alert("Missing required data. Redirecting...");
       navigate("/");
@@ -165,24 +200,29 @@ const generatePDF = (styles) => {
     parseAndSetSections(responseData || "[]"); // Default to empty array if responseData is null or undefined
   }, [file, companyName, companyDescription, responseData, navigate]);
 
-  const parseAndSetSections = (jsonResponse: string) => {
+  const parseAndSetSections = (jsonResponse) => {
     try {
-      const parsedData = JSON.parse(jsonResponse);
-      console.log("Parsed JSON:", parsedData); // Debugging
-  
-      if (!parsedData.response || !Array.isArray(parsedData.response)) {
+      let parsedData;
+      if (typeof jsonResponse === 'string') {
+        parsedData = JSON.parse(jsonResponse);
+      } else {
+        parsedData = jsonResponse;
+      }
+      
+      if (!parsedData || !parsedData.response || !Array.isArray(parsedData.response)) {
+        console.error("Unexpected data structure:", parsedData);
         throw new Error("Unexpected response format");
       }
   
-      const newSections: Section[] = parsedData.response.map((section: any) => ({
+      // Just pass the sections as they are - don't try to manipulate the content
+      const newSections = parsedData.response.map((section) => ({
         title: section.title,
-        content: section.content, // This is already in JSON format
+        content: section.content
       }));
   
-      console.log("Parsed Sections:", newSections);
       setSections(newSections);
     } catch (error) {
-      console.error("Error parsing JSON response:", error);
+      console.error("Error in parseAndSetSections:", error);
     }
   };
   
@@ -194,20 +234,37 @@ const generatePDF = (styles) => {
     );
   };
 
-  const startEditing = (section: Section) => {
-    console.log("🚀 startEditing() triggered for:", section.title);
+  const startEditing = (section) => {
     setEditingSection(section.title);
   
     if (editorRef.current) {
       editorRef.current.destroy();
     }
   
-    let parsedContent;
-    try {
-      parsedContent = section.content ? JSON.parse(section.content) : { blocks: [] };
-    } catch (error) {
-      console.error("Error parsing section content:", error);
-      parsedContent = { blocks: [] };
+    // Create editor.js data format based on the content
+    let editorData = { blocks: [] };
+    
+    if (section.content) {
+      if (section.content.type === 'paragraph') {
+        editorData = {
+          blocks: [{
+            type: 'paragraph',
+            data: {
+              text: section.content.data
+            }
+          }]
+        };
+      } else if (section.content.type === 'list' && Array.isArray(section.content.data)) {
+        editorData = {
+          blocks: [{
+            type: 'list',
+            data: {
+              style: 'unordered',
+              items: section.content.data
+            }
+          }]
+        };
+      }
     }
   
     setTimeout(() => {
@@ -218,31 +275,49 @@ const generatePDF = (styles) => {
           list: List,
           paragraph: Paragraph,
         },
-        data: parsedContent, // 👈 Ensure this is properly formatted
+        data: editorData,
       });
     }, 100);
   };
 
 
-const saveEdits = async () => {
-  if (!editorRef.current) return;
-
-  try {
-    const outputData = await editorRef.current.save(); // Keep this as JSON
-
-    setSections(prevSections =>
-      prevSections.map(section =>
-        section.title === editingSection
-          ? { ...section, content: JSON.stringify(outputData) } 
-          : section
-      )
-    );
-
-    setEditingSection(null);
-  } catch (error) {
-    console.error("Error saving edits:", error);
-  }
-};
+  const saveEdits = async () => {
+    if (!editorRef.current) return;
+  
+    try {
+      const outputData = await editorRef.current.save();
+      
+      // Convert Editor.js format back to your API format
+      let newContent = { type: 'paragraph', data: '' };
+      
+      if (outputData.blocks && outputData.blocks.length > 0) {
+        const block = outputData.blocks[0];
+        if (block.type === 'paragraph') {
+          newContent = {
+            type: 'paragraph',
+            data: block.data.text
+          };
+        } else if (block.type === 'list') {
+          newContent = {
+            type: 'list',
+            data: block.data.items
+          };
+        }
+      }
+  
+      setSections(prevSections =>
+        prevSections.map(section =>
+          section.title === editingSection
+            ? { ...section, content: newContent }
+            : section
+        )
+      );
+  
+      setEditingSection(null);
+    } catch (error) {
+      console.error("Error saving edits:", error);
+    }
+  };
   const cancelEditing = () => {
     setEditingSection(null);
   };
@@ -384,21 +459,62 @@ const saveEdits = async () => {
                           <div>
                             {(() => {
                               try {
-                                const contentData = section.content ? JSON.parse(section.content) : null;
-                                return (
-                                  <div
-                                    dangerouslySetInnerHTML={{
-                                      __html: DOMPurify.sanitize(
-                                        contentData
-                                          ? contentData.blocks.map((block: any) => `<p>${block.data.text}</p>`).join('\n')
-                                          : section.content // If not JSON, render as-is
-                                      ),
-                                    }}
-                                  />
-                                );
+                                const contentObj = section.content;
+                                
+                                // Check if content is in the format returned by your API
+                                if (contentObj && (contentObj.type === 'paragraph' || contentObj.type === 'list')) {
+                                  if (contentObj.type === 'paragraph') {
+                                    return <p>{contentObj.data}</p>;
+                                  } else if (contentObj.type === 'list' && Array.isArray(contentObj.data)) {
+                                    return (
+                                      <ul className="list-disc pl-5 space-y-2">
+                                        {contentObj.data.map((item, idx) => (
+                                          <li key={idx}>{item}</li>
+                                        ))}
+                                      </ul>
+                                    );
+                                  }
+                                }
+                                
+                                // Try to handle it as Editor.js content (fallback)
+                                try {
+                                  const editorContent = typeof contentObj === 'string' 
+                                    ? JSON.parse(contentObj) 
+                                    : contentObj;
+                                    
+                                  if (editorContent && editorContent.blocks) {
+                                    return (
+                                      <div
+                                        dangerouslySetInnerHTML={{
+                                          __html: DOMPurify.sanitize(
+                                            editorContent.blocks.map((block) => {
+                                              if (block.type === 'paragraph') {
+                                                return `<p>${block.data.text}</p>`;
+                                              } else if (block.type === 'list') {
+                                                const listItems = block.data.items
+                                                  .map(item => `<li>${item}</li>`)
+                                                  .join('');
+                                                return block.data.style === 'unordered' 
+                                                  ? `<ul>${listItems}</ul>` 
+                                                  : `<ol>${listItems}</ol>`;
+                                              } else {
+                                                return '';
+                                              }
+                                            }).join('\n')
+                                          ),
+                                        }}
+                                      />
+                                    );
+                                  }
+                                } catch (e) {
+                                  console.log("Not Editor.js format, displaying as is");
+                                }
+                                
+                                // If all else fails, just display the content as a string
+                                return <p>{JSON.stringify(contentObj)}</p>;
                               } catch (error) {
-                                console.error("Error parsing section content:", error);
-                                return <p>{section.content}</p>; // Render raw text if parsing fails
+                                console.error("Error rendering section content:", error);
+                                return <p>Error displaying content</p>;
                               }
                             })()}
                           </div>
