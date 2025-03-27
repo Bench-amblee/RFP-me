@@ -3,7 +3,7 @@ import Home from "./components/Home";
 import UploadPage from "./components/UploadPage";
 import LoadingPage from "./components/LoadingPage";
 import ReviewPage from "./components/ReviewPage";
-import { RfpProvider } from "./components/RfpContext"; // Import RfpProvider
+import { RfpProvider } from "./components/RfpContext";
 
 const App = () => {
   return (

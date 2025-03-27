@@ -1,646 +1,525 @@
-import React, { useEffect, useState, useContext, useRef } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
-import DOMPurify from "dompurify";
-import edjsHTML from "editorjs-html";
-import EditorJS from '@editorjs/editorjs';
-import Header from '@editorjs/header';
-import List from '@editorjs/list';
-import Paragraph from '@editorjs/paragraph';
-import { ChevronDown, ChevronUp, Edit2, Save, X, FileDown, ArrowLeft, } from 'lucide-react';
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
+import { 
+  ChevronDown, 
+  ChevronUp, 
+  Edit2, 
+  Save, 
+  X, 
+  FileDown, 
+  ArrowLeft,
+  CheckCircle
+} from "lucide-react";
 import Navbar from "./Navbar";
-import CustomizationPanel from './CustomizationPanel';
 import RfpContext from "./RfpContext";
-import pdfMake from 'pdfmake/build/pdfmake';
-import 'pdfmake/build/vfs_fonts';
+import html2pdf from "html2pdf.js";
 
-
-interface Section {
+// Interface for RFP sections
+interface RfpSection {
+  id: string;
   title: string;
   content: string;
 }
 
-const ReviewPage = () => {
-  const [sections, setSections] = useState<Section[]>([]);
-  const [projectName] = useState<string | null>(null);
-  const [editingSection, setEditingSection] = useState<string | null>(null);
-  const editorRef = useRef<EditorJS | null>(null);
-  const [sidebarOpen] = useState(true);
+const ReviewPage: React.FC = () => {
   const navigate = useNavigate();
-  const [expandedSections, setExpandedSections] = useState(["Title Page"]);
+  const { 
+    companyName, 
+    companyDescription, 
+    file, 
+    responseData,
+    setResponseData 
+  } = useContext(RfpContext) || {};
   
-
-
-  useEffect(() => {
-    if (sections.length > 0) {
-      setExpandedSections(sections.map((section) => section.title).concat("Title Page"));
-    }
-  }, [sections]);
-
-  const [styles, setStyles] = useState({
-    color: '#333333',
-    fontFamily: 'Arial',
-});
-
-const context = useContext(RfpContext);
-    if (!context) {
-  throw new Error("ReviewPage must be used within an RfpProvider");
-    }
-const { companyName, companyDescription, file, responseData } = context;
-
-  const convertTextFormatting = (text) => {
-    if (!text) return "";
-    return text
-        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") // Bold (**bold**)
-        .replace(/\*(.*?)\*/g, "<em>$1</em>") // Italics (*italic*)
-        .replace(/__(.*?)__/g, "<u>$1</u>"); // Underline (__underline__)
-};
-  const edjsParser = edjsHTML({
-    header: (block) => `<h${block.data.level}>${block.data.text}</h${block.data.level}>`,
-    paragraph: (block) => `<p>${convertTextFormatting(block.data.text)}</p>`,
-    list: (block) => {
-        const listTag = block.data.style === "unordered" ? "ul" : "ol";
-        return `<${listTag}>${block.data.items.map(item => `<li>${convertTextFormatting(item)}</li>`).join('')}</${listTag}>`;
-    },
-    marker: (block) => `<strong>${block.data.text}</strong>`, // Convert marker (highlight) to bold
-});
-
-const convertContentToHTML = (content) => {
-  try {
-    // If it's already a string, return it
-    if (typeof content === 'string') return content;
-    
-    // Handle your API's content format
-    if (content && typeof content === 'object') {
-      if (content.type === 'paragraph') {
-        return `<p>${convertTextFormatting(content.data)}</p>`;
-      } else if (content.type === 'list' && Array.isArray(content.data)) {
-        // Use proper HTML list with bullet points
-        return `<ul style="list-style-type: disc; padding-left: 20px; margin: 12px 0;">
-          ${content.data.map(item => `<li style="margin-bottom: 8px;">${convertTextFormatting(item)}</li>`).join('')}
-        </ul>`;
-      }
-    }
-    
-    // Rest of your function remains the same
-    // ...
-  } catch (error) {
-    console.error("Error converting content to HTML:", error);
-    return "";
-  }
-};
-
-
-const generatePDF = (styles) => {
-  console.log("Starting PDF generation");
-  
-  if (!sections.length) {
-    alert("The response is still generating. Please wait!");
-    return;
-  }
-
-  const fileName = `${companyName.replace(/\s+/g, '_')}_RFP_Response.pdf`;
-  
-  // Build document content
-  const content = [];
-  
-  // Add title page
-  content.push(
-    { text: 'RFP Response Document', fontSize: 24, alignment: 'center', margin: [0, 50, 0, 20] },
-    { text: `Company: ${companyName}`, margin: [0, 5] },
-    { text: `Date: ${new Date().toLocaleDateString()}`, margin: [0, 5] },
-  );
-  
-  // Process each section
-  sections.forEach(section => {
-    // Add section heading
-    content.push({ 
-      text: section.title, 
-      fontSize: 18,
-      margin: [0, 20, 0, 10], 
-      pageBreak: 'before' 
-    });
-    
-    // Extract the actual content from various possible formats
-    let sectionContent = '';
-    let listItems = [];
-    
-    try {
-      // If content is stored in the API format with type and data
-      if (section.content && typeof section.content === 'object') {
-        if (section.content.type === 'paragraph' && section.content.data) {
-          // Preserve line breaks in PDFs by using an array of text objects
-          const lines = section.content.data.split('\n');
-          lines.forEach((line, idx) => {
-            content.push({
-              text: line,
-              fontSize: 12,
-              margin: idx === 0 ? [0, 10, 0, 0] : [0, 5, 0, 0]
-            });
-          });
-        } else if (section.content.type === 'list' && Array.isArray(section.content.data)) {
-          listItems = section.content.data;
-          hasContent = true;
-        }
-      }
-      // If content is stored as Editor.js JSON string
-      else if (typeof section.content === 'string') {
-        try {
-          const parsedContent = JSON.parse(section.content);
-          
-          if (parsedContent.blocks && Array.isArray(parsedContent.blocks)) {
-            // Combine all blocks into a single content string
-            sectionContent = parsedContent.blocks
-              .filter(block => block.type === 'paragraph')
-              .map(block => block.data.text)
-              .join('\n\n');
-              
-            // Extract list items if any
-            const listBlocks = parsedContent.blocks.filter(block => block.type === 'list');
-            if (listBlocks.length > 0 && listBlocks[0].data.items) {
-              listItems = listBlocks[0].data.items;
-            }
-          }
-        } catch (e) {
-          // If it's not valid JSON, use it as plain text
-          sectionContent = section.content;
-        }
-      }
-      
-      // Add the extracted content to the PDF
-      if (sectionContent) {
-        content.push({ 
-          text: sectionContent, 
-          fontSize: 12,
-          margin: [0, 10, 0, 15] 
-        });
-      }
-      
-      // Add list items if any
-      if (listItems.length > 0) {
-        content.push({
-          ul: listItems.map(item => ({
-            text: item,
-            margin: [0, 5]
-          }))
-        });
-      }
-      
-    } catch (error) {
-      console.error(`Error processing section ${section.title}:`, error);
-      // Fallback to displaying raw content
-      content.push({ 
-        text: `[Error displaying content: ${error.message}]`, 
-        fontSize: 12,
-        margin: [0, 10, 0, 15],
-        color: 'red'
-      });
-    }
+  const [sections, setSections] = useState<RfpSection[]>([]);
+  const [expandedSections, setExpandedSections] = useState<string[]>([]);
+  const [editingSection, setEditingSection] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [documentStyles, setDocumentStyles] = useState({
+    fontFamily: "Arial, sans-serif",
+    primaryColor: "#2563EB",
+    textColor: "#333333",
+    headerColor: "#1E40AF"
   });
-  
-  // Define document
-  const docDefinition = {
-    content: content,
-    defaultStyle: {
-      fontSize: 12
-    }
-  };
-  
-  try {
-    console.log("Creating PDF with pdfMake");
-    pdfMake.createPdf(docDefinition).download(fileName);
-  } catch (error) {
-    console.error("Error generating PDF:", error);
-  }
-};
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [saveStatus, setSaveStatus] = useState<{
+    show: boolean;
+    success: boolean;
+    message: string;
+  }>({ show: false, success: false, message: "" });
 
-
+  // Process the incoming response data and convert to consistent format
   useEffect(() => {
-    console.log("ResponseData received in ReviewPage:", responseData);
-    console.log("Type of responseData:", typeof responseData);
-    if (!file || !companyName || !companyDescription) {
-      alert("Missing required data. Redirecting...");
-      navigate("/");
+    if (!responseData) {
+      // Redirect if no data
+      if (!file || !companyName) {
+        navigate("/upload");
+        return;
+      }
       return;
     }
-    parseAndSetSections(responseData || "[]"); // Default to empty array if responseData is null or undefined
-  }, [file, companyName, companyDescription, responseData, navigate]);
 
-  const parseAndSetSections = (jsonResponse) => {
     try {
       let parsedData;
-      if (typeof jsonResponse === 'string') {
-        parsedData = JSON.parse(jsonResponse);
-      } else {
-        parsedData = jsonResponse;
-      }
       
+      if (typeof responseData === "string") {
+        parsedData = JSON.parse(responseData);
+      } else {
+        parsedData = responseData;
+      }
+
       if (!parsedData || !parsedData.response || !Array.isArray(parsedData.response)) {
         console.error("Unexpected data structure:", parsedData);
-        throw new Error("Unexpected response format");
+        setSaveStatus({
+          show: true,
+          success: false,
+          message: "Error parsing response data"
+        });
+        return;
       }
-  
-      // Just pass the sections as they are - don't try to manipulate the content
-      const newSections = parsedData.response.map((section) => ({
-        title: section.title,
-        content: section.content
-      }));
-  
-      setSections(newSections);
+
+      // Convert API response to consistent section format
+      const formattedSections = parsedData.response.map((section, index) => {
+        // Extract content from various possible formats
+        let formattedContent = "";
+        
+        try {
+          if (typeof section.content === "string") {
+            try {
+              // Check if it's JSON from EditorJS
+              const parsed = JSON.parse(section.content);
+              if (parsed.blocks) {
+                // Convert EditorJS blocks to HTML
+                formattedContent = convertEditorJsToHtml(parsed);
+              } else {
+                // Just use the content as is
+                formattedContent = section.content;
+              }
+            } catch (e) {
+              // Not JSON, use as is
+              formattedContent = section.content;
+            }
+          } else if (section.content && typeof section.content === "object") {
+            // Handle API format with type and data
+            if (section.content.type === "paragraph") {
+              formattedContent = section.content.data;
+            } else if (section.content.type === "list" && Array.isArray(section.content.data)) {
+              formattedContent = `<ul>${section.content.data.map(item => `<li>${item}</li>`).join("")}</ul>`;
+            }
+          }
+        } catch (error) {
+          console.error("Error processing section content:", error);
+          formattedContent = "Error displaying content";
+        }
+        
+        return {
+          id: `section-${index}`,
+          title: section.title,
+          content: formattedContent
+        };
+      });
+
+      setSections(formattedSections);
+      // Expand all sections by default
+      setExpandedSections(formattedSections.map(section => section.id).concat("title-page"));
     } catch (error) {
-      console.error("Error in parseAndSetSections:", error);
+      console.error("Error parsing response data:", error);
+      setSaveStatus({
+        show: true,
+        success: false,
+        message: "Error processing RFP response"
+      });
     }
+  }, [responseData, file, companyName, companyDescription, navigate]);
+
+  // Helper to convert EditorJS content to HTML
+  const convertEditorJsToHtml = (editorData) => {
+    if (!editorData || !editorData.blocks) return "";
+    
+    return editorData.blocks.map(block => {
+      switch (block.type) {
+        case "paragraph":
+          return `<p>${block.data.text.replace(/\n/g, "<br>")}</p>`;
+        case "header":
+          return `<h${block.data.level}>${block.data.text}</h${block.data.level}>`;
+        case "list":
+          const listItems = block.data.items.map(item => `<li>${item}</li>`).join("");
+          return block.data.style === "unordered" 
+            ? `<ul>${listItems}</ul>` 
+            : `<ol>${listItems}</ol>`;
+        default:
+          return "";
+      }
+    }).join("");
   };
-  
-  const toggleSection = (sectionTitle: string) => {
-    setExpandedSections(prevExpanded => 
-      prevExpanded.includes(sectionTitle)
-        ? prevExpanded.filter(title => title !== sectionTitle) // Collapse if open
-        : [...prevExpanded, sectionTitle] // Expand if closed
+
+  // Toggle section expansion
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections(prev => 
+      prev.includes(sectionId)
+        ? prev.filter(id => id !== sectionId)
+        : [...prev, sectionId]
     );
   };
 
-  const startEditing = (section) => {
-    console.log("Starting editing for:", section.title);
-    setEditingSection(section.title);
-  
-    if (editorRef.current) {
-      editorRef.current.destroy();
-    }
-  
-    // Create editor.js data structure
-    let editorData = { blocks: [] };
+  // Start editing a section
+  const startEditing = (section: RfpSection) => {
+    setEditingSection(section.id);
+    setEditContent(section.content);
+  };
+
+  // Save edits to a section
+  const saveEdits = () => {
+    if (!editingSection) return;
     
-    try {
-      // Handle API format (type + data)
-      if (section.content && typeof section.content === 'object') {
-        console.log("Processing API format content:", section.content);
-        
-        if (section.content.type === 'paragraph') {
-          // Add paragraph block
-          editorData = {
-            blocks: [{
-              type: 'paragraph',
-              data: {
-                text: section.content.data
-              }
-            }]
-          };
-        } else if (section.content.type === 'list' && Array.isArray(section.content.data)) {
-          // Add list block
-          editorData = {
-            blocks: [{
-              type: 'list',
-              data: {
-                style: 'unordered',
-                items: section.content.data
-              }
-            }]
-          };
-        }
-      } 
-      // Try to parse if it's a JSON string (Editor.js format)
-      else if (typeof section.content === 'string') {
-        try {
-          const parsedContent = JSON.parse(section.content);
-          if (parsedContent.blocks) {
-            editorData = parsedContent;
-          } else {
-            // If it's JSON but not in Editor.js format
-            editorData = {
-              blocks: [{
-                type: 'paragraph',
-                data: {
-                  text: section.content
-                }
-              }]
-            };
-          }
-        } catch (e) {
-          // If it's not valid JSON, use as plain text
-          editorData = {
-            blocks: [{
-              type: 'paragraph',
-              data: {
-                text: section.content
-              }
-            }]
-          };
-        }
-      }
-      
-      console.log("Initializing editor with data:", editorData);
-    } catch (error) {
-      console.error("Error preparing content for editor:", error);
-      // Initialize with empty block on error
-      editorData = {
-        blocks: [{
-          type: 'paragraph',
-          data: {
-            text: ''
-          }
-        }]
-      };
-    }
-  
-    // Initialize the editor with a short delay
+    setSections(prevSections => 
+      prevSections.map(section => 
+        section.id === editingSection
+          ? { ...section, content: editContent }
+          : section
+      )
+    );
+    
+    // Update the response data to be consistent
+    updateResponseData();
+    
+    setEditingSection(null);
+    setEditContent("");
+    
+    // Show success message
+    setSaveStatus({
+      show: true,
+      success: true,
+      message: "Changes saved successfully"
+    });
+    
+    // Hide message after 3 seconds
     setTimeout(() => {
-      editorRef.current = new EditorJS({
-        holder: 'editor-js-container',
-        tools: {
-          header: Header,
-          list: List,
-          paragraph: Paragraph,
-        },
-        data: editorData,
-      });
-    }, 100);
+      setSaveStatus(prev => ({ ...prev, show: false }));
+    }, 3000);
   };
 
-
-  const saveEdits = async () => {
-    if (!editorRef.current) return;
-  
-    try {
-      const outputData = await editorRef.current.save();
-      console.log("Editor saved data:", outputData);
-      
-      // Extract text content from each block for API format
-      let paragraphContent = "";
-      let listItems = [];
-      
-      if (outputData.blocks && outputData.blocks.length > 0) {
-        outputData.blocks.forEach((block, index) => {
-          if (block.type === 'paragraph') {
-            // Append paragraph text with proper line breaks
-            if (paragraphContent) {
-              // Add double newline between paragraphs
-              paragraphContent += "\n\n" + block.data.text;
-            } else {
-              paragraphContent = block.data.text;
-            }
-          } else if (block.type === 'list' && block.data.items) {
-            // Collect list items
-            listItems = [...listItems, ...block.data.items];
-          }
-        });
-      }
-      
-      // Determine content format to save
-      let newContent;
-      if (listItems.length > 0) {
-        // If list items were found, save as list type
-        newContent = {
-          type: 'list',
-          data: listItems
-        };
-      } else {
-        // Otherwise save as paragraph type
-        newContent = {
-          type: 'paragraph',
-          data: paragraphContent || ""
-        };
-      }
-      
-      console.log("Saving section with content:", newContent);
-      
-      // Update sections with the new content
-      setSections(prevSections =>
-        prevSections.map(section =>
-          section.title === editingSection
-            ? { ...section, content: newContent }
-            : section
-        )
-      );
-  
-      setEditingSection(null);
-    } catch (error) {
-      console.error("Error saving edits:", error);
-    }
+  // Update the response data in context when sections change
+  const updateResponseData = () => {
+    if (!sections.length) return;
+    
+    const updatedResponse = {
+      response: sections.map(section => ({
+        title: section.title,
+        content: section.content
+      }))
+    };
+    
+    setResponseData(JSON.stringify(updatedResponse));
   };
 
+  // Cancel editing
   const cancelEditing = () => {
     setEditingSection(null);
+    setEditContent("");
   };
+
+  // Generate and download PDF
+  const generatePDF = () => {
+    const content = document.getElementById("rfp-document");
+    if (!content) return;
+    
+    // Clone the content to avoid modifying the original DOM
+    const clonedContent = content.cloneNode(true) as HTMLElement;
+    
+    // Remove any edit buttons in the clone
+    const editButtons = clonedContent.querySelectorAll(".edit-button");
+    editButtons.forEach(button => button.remove());
+    
+    // Ensure the document fits on PDF pages properly
+    const options = {
+      margin: 10,
+      filename: `${companyName.replace(/\s+/g, '_')}_RFP_Response.pdf`,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
+    };
+    
+    // Generate PDF
+    html2pdf().set(options).from(clonedContent).save();
+  };
+
+  // Rich text editor modules/formats
+  const editorModules = {
+    toolbar: [
+      [{ header: [1, 2, 3, false] }],
+      ["bold", "italic", "underline", "strike"],
+      [{ list: "ordered" }, { list: "bullet" }],
+      ["link"],
+      ["clean"]
+    ]
+  };
+
+  // Custom toolbar format options
+  const editorFormats = [
+    "header",
+    "bold", "italic", "underline", "strike",
+    "list", "bullet",
+    "link"
+  ];
 
   return (
     <>
       <Navbar />
-      <div className="min-h-[calc(100vh-4rem)] bg-gradient-to-br from-blue-50 via-white to-green-50">
-        {/* Sidebar Navigation */}
-        <div className={`fixed top-16 left-0 h-full bg-white shadow-lg transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-0'} overflow-hidden`}>
-          <div className="p-4">
-            <h3 className="text-lg font-semibold mb-4 text-gray-700">Document Sections</h3>
-            <ul className="space-y-2">
-              <li>
-                <button
-                  onClick={() => toggleSection("Title Page")}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition ${
-                    expandedSections.includes("Title Page") ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
-                  }`}
-                >
-                  Title Page
-                </button>
-              </li>
-              {sections.map((section, index) => (
-                <li key={index}>
-                  <button
-                    onClick={() => toggleSection(section.title)}
-                    className={`w-full text-left px-3 py-2 rounded-lg transition ${
-                      expandedSections.includes(section.title) ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-100'
-                    }`}
-                  >
-                    {section.title}
-                  </button>
-                </li>
-              ))}
-            </ul>
+      <div className="min-h-screen bg-gray-50">
+        {/* Top action bar */}
+        <div className="bg-white shadow-sm border-b">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => navigate("/upload")}
+                className="flex items-center space-x-2 text-gray-600 hover:text-gray-900"
+              >
+                <ArrowLeft size={18} />
+                <span>Back to Upload</span>
+              </button>
+              <h1 className="text-xl font-semibold">RFP Response Review</h1>
+            </div>
+            
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => setShowSidebar(!showSidebar)}
+                className="px-3 py-2 border rounded-md text-gray-600 hover:bg-gray-50"
+              >
+                {showSidebar ? "Hide Outline" : "Show Outline"}
+              </button>
+              <button
+                onClick={generatePDF}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                <FileDown size={18} />
+                <span>Export PDF</span>
+              </button>
+            </div>
           </div>
         </div>
-  
-        {/* Main Content */}
-        <div className={`transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
-          <div className="max-w-4xl mx-auto p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h1 className="text-3xl font-bold text-gray-900">RFP Response Review</h1>
-              <div className="flex gap-4">
-                <button
-                  onClick={() => navigate("/")}
-                  className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition"
-                >
-                  <ArrowLeft size={20} />
-                  Back
-                </button>
-                <button
-                  onClick={() => generatePDF(styles)}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-                >
-                  <FileDown size={20} />
-                  Export PDF
-                </button>
+
+        {/* Main content with sidebar */}
+        <div className="flex max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* Document outline sidebar */}
+          {showSidebar && (
+            <div className="w-64 mr-8">
+              <div className="bg-white rounded-lg shadow-sm border p-4">
+                <h2 className="font-medium text-gray-900 mb-4">Document Outline</h2>
+                <ul className="space-y-2">
+                  <li>
+                    <button
+                      onClick={() => toggleSection("title-page")}
+                      className={`w-full text-left px-3 py-2 rounded-md text-sm ${
+                        expandedSections.includes("title-page")
+                          ? "bg-blue-50 text-blue-700"
+                          : "text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      Title Page
+                    </button>
+                  </li>
+                  {sections.map((section) => (
+                    <li key={section.id}>
+                      <button
+                        onClick={() => toggleSection(section.id)}
+                        className={`w-full text-left px-3 py-2 rounded-md text-sm ${
+                          expandedSections.includes(section.id)
+                            ? "bg-blue-50 text-blue-700"
+                            : "text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        {section.title}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
-  
-            {/* Add Customization Panel Here */}
-            <CustomizationPanel setStyles={setStyles} />
-              <div
-                className="bg-white rounded-xl shadow-lg overflow-hidden"
-                style={{
-                  color: styles.color,
-                  fontFamily: styles.fontFamily,
-                }}
-              >
-                {/* Title Page */}
-                <div className="border-b">
-                  <button
-                    onClick={() => toggleSection("Title Page")}
-                    className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition"
+          )}
+
+          {/* Document content */}
+          <div className="flex-1">
+            {/* Style customization */}
+            <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
+              <h2 className="font-medium text-gray-900 mb-4">Document Styling</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Font Family</label>
+                  <select
+                    value={documentStyles.fontFamily}
+                    onChange={(e) => setDocumentStyles(prev => ({ ...prev, fontFamily: e.target.value }))}
+                    className="w-full px-3 py-2 border rounded-md text-sm"
                   >
-                    <h2 className="text-2xl font-bold text-gray-900">Title Page</h2>
-                    {expandedSections.includes("Title Page") ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                  </button>
-                  {expandedSections.includes("Title Page") && (
-                    <div className="px-6 py-4 bg-gray-50">
-                      <div className="space-y-2 text-gray-600">
-                        <p><strong>Company:</strong> {companyName}</p>
-                        <p><strong>Date:</strong> {new Date().toLocaleDateString()}</p>
-                        {projectName && <p><strong>Project Name:</strong> {projectName}</p>}
-                      </div>
-                    </div>
-                  )}
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="Georgia, serif">Georgia</option>
+                    <option value="'Times New Roman', Times, serif">Times New Roman</option>
+                    <option value="Verdana, sans-serif">Verdana</option>
+                    <option value="'Courier New', monospace">Courier New</option>
+                  </select>
                 </div>
-  
-                {/* Content Sections */}
-                {sections.map((section, index) => (
-                  <div key={index} className="border-b last:border-b-0">
-                    <button
-                      onClick={() => toggleSection(section.title)}
-                      className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition"
+                <div>
+                  <label className="block text-sm text-gray-700 mb-1">Primary Color</label>
+                  <input
+                    type="color"
+                    value={documentStyles.primaryColor}
+                    onChange={(e) => setDocumentStyles(prev => ({ ...prev, primaryColor: e.target.value }))}
+                    className="w-full px-2 py-1 border rounded-md h-10"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Success/error notification */}
+            {saveStatus.show && (
+              <div className={`mb-4 p-3 rounded-md ${
+                saveStatus.success ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+              }`}>
+                <div className="flex items-center">
+                  {saveStatus.success ? (
+                    <CheckCircle className="h-5 w-5 mr-2" />
+                  ) : (
+                    <X className="h-5 w-5 mr-2" />
+                  )}
+                  <p>{saveStatus.message}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Document preview */}
+            <div 
+              id="rfp-document" 
+              className="bg-white rounded-lg shadow-lg border overflow-hidden"
+              style={{ fontFamily: documentStyles.fontFamily }}
+            >
+              {/* Title Page */}
+              <div className="border-b">
+                <button
+                  onClick={() => toggleSection("title-page")}
+                  className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50"
+                >
+                  <h2 
+                    className="text-2xl font-bold" 
+                    style={{ color: documentStyles.headerColor }}
+                  >
+                    Title Page
+                  </h2>
+                  {expandedSections.includes("title-page") ? 
+                    <ChevronUp size={20} /> : 
+                    <ChevronDown size={20} />
+                  }
+                </button>
+                {expandedSections.includes("title-page") && (
+                  <div className="px-6 py-8 bg-gray-50">
+                    <div className="text-center mb-12">
+                      <h1 
+                        className="text-3xl font-bold mb-4" 
+                        style={{ color: documentStyles.primaryColor }}
+                      >
+                        RFP Response
+                      </h1>
+                      <p className="text-xl mb-2">Prepared by: {companyName}</p>
+                      <p className="text-gray-600">
+                        {new Date().toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long', 
+                          day: 'numeric'
+                        })}
+                      </p>
+                    </div>
+                    <div className="border-t border-gray-300 pt-6">
+                      <h3 
+                        className="text-lg font-medium mb-2"
+                        style={{ color: documentStyles.headerColor }}
+                      >
+                        Company Overview
+                      </h3>
+                      <p className="text-gray-700">{companyDescription}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Document Sections */}
+              {sections.map((section) => (
+                <div key={section.id} className="border-b last:border-0">
+                  <button
+                    onClick={() => toggleSection(section.id)}
+                    className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50"
+                  >
+                    <h2 
+                      className="text-2xl font-bold"
+                      style={{ color: documentStyles.headerColor }}
                     >
-                      <h2 className="text-2xl font-bold text-gray-900">{section.title}</h2>
-                      <div className="flex items-center gap-2">
-                        {expandedSections.includes(section.title) && editingSection !== section.title && (
+                      {section.title}
+                    </h2>
+                    <div className="flex items-center">
+                      {expandedSections.includes(section.id) && 
+                        editingSection !== section.id && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               startEditing(section);
                             }}
-                            className="p-2 text-gray-500 hover:text-blue-600 transition"
+                            className="edit-button p-2 text-gray-500 hover:text-blue-600 mr-2"
                           >
-                            <Edit2 size={18} />
+                            <Edit2 size={16} />
                           </button>
-                        )}
-                        {expandedSections.includes(section.title) ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                      </div>
-                    </button>
-                    {expandedSections.includes(section.title) && (
-                      <div className="px-6 py-4 bg-gray-50">
-                        {editingSection === section.title ? (
-                          <div className="space-y-4">
-                            <div id="editor-js-container" className="border p-4 rounded-lg bg-white shadow-sm"></div>
-  
-                            <div className="flex justify-end gap-2">
-                              <button
-                                onClick={cancelEditing}
-                                className="flex items-center gap-1 px-3 py-2 text-gray-600 hover:text-gray-800 transition"
-                              >
-                                <X size={18} />
-                                Cancel
-                              </button>
-                              <button
-                                onClick={saveEdits}
-                                className="flex items-center gap-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                              >
-                                <Save size={18} />
-                                Save
-                              </button>
-                            </div>
+                        )
+                      }
+                      {expandedSections.includes(section.id) ? 
+                        <ChevronUp size={20} /> : 
+                        <ChevronDown size={20} />
+                      }
+                    </div>
+                  </button>
+                  
+                  {expandedSections.includes(section.id) && (
+                    <div className="px-6 py-4 bg-gray-50">
+                      {editingSection === section.id ? (
+                        <div>
+                          <ReactQuill
+                            value={editContent}
+                            onChange={setEditContent}
+                            modules={editorModules}
+                            formats={editorFormats}
+                            theme="snow"
+                            className="bg-white mb-4 min-h-[200px]"
+                          />
+                          <div className="flex justify-end space-x-3 mt-6">
+                            <button
+                              onClick={cancelEditing}
+                              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={saveEdits}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
+                            >
+                              <Save size={16} className="mr-1" /> Save Changes
+                            </button>
                           </div>
-                        ) : (
-                          <div>
-                            {(() => {
-                              try {
-                                const contentObj = section.content;
-                                
-                                // Check if content is in the format returned by your API
-                                if (contentObj && (contentObj.type === 'paragraph' || contentObj.type === 'list')) {
-                                  if (contentObj.type === 'paragraph') {
-                                    // Split paragraph text by newlines and add <br> tags
-                                    const formattedText = contentObj.data
-                                      .split('\n')
-                                      .map((line, index) => (
-                                        <React.Fragment key={index}>
-                                          {line}
-                                          {index < contentObj.data.split('\n').length - 1 && <br />}
-                                        </React.Fragment>
-                                      ));
-                                    
-                                    return <p>{formattedText}</p>;
-                                  } else if (contentObj.type === 'list' && Array.isArray(contentObj.data)) {
-                                    return (
-                                      <ul className="list-disc pl-5 space-y-2">
-                                        {contentObj.data.map((item, idx) => (
-                                          <li key={idx}>{item}</li>
-                                        ))}
-                                      </ul>
-                                    );
-                                  }
-                                }
-                                
-                                // Try to handle it as Editor.js content (fallback)
-                                try {
-                                  const editorContent = typeof contentObj === 'string'
-                                    ? JSON.parse(contentObj)
-                                    : contentObj;
-                                    
-                                  if (editorContent && editorContent.blocks) {
-                                    return (
-                                      <div
-                                        dangerouslySetInnerHTML={{
-                                          __html: DOMPurify.sanitize(
-                                            editorContent.blocks.map((block) => {
-                                              if (block.type === 'paragraph') {
-                                                // Preserve line breaks in paragraph content
-                                                const text = block.data.text.replace(/\n/g, '<br>');
-                                                return `<p>${text}</p>`;
-                                              } else if (block.type === 'list') {
-                                                const listItems = block.data.items
-                                                  .map(item => `<li>${item}</li>`)
-                                                  .join('');
-                                                return block.data.style === 'unordered'
-                                                  ? `<ul>${listItems}</ul>`
-                                                  : `<ol>${listItems}</ol>`;
-                                              } else {
-                                                return '';
-                                              }
-                                            }).join('\n')
-                                          ),
-                                        }}
-                                      />
-                                    );
-                                  }
-                                } catch (e) {
-                                  console.log("Not Editor.js format, displaying as is");
-                                }
-                                
-                                // If all else fails, just display the content as a string
-                                return <p>{JSON.stringify(contentObj)}</p>;
-                              } catch (error) {
-                                console.error("Error rendering section content:", error);
-                                return <p>Error displaying content</p>;
-                              }
-                            })()}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+                        </div>
+                      ) : (
+                        <div 
+                          dangerouslySetInnerHTML={{ __html: section.content }}
+                          className="prose max-w-none"
+                          style={{ color: documentStyles.textColor }}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
     </>
-  );  
+  );
 };
 
 export default ReviewPage;
